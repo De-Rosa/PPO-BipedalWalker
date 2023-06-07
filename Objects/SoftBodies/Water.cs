@@ -8,7 +8,7 @@ using Physics.Objects.RigidBodies;
 
 namespace Physics.Objects.SoftBodies;
 
-public class Point
+public class Water
 {
     private readonly float _radius;
     private Vector2 _position;
@@ -19,7 +19,7 @@ public class Point
 
     private readonly float _inverseMass;
 
-    public Point(IMaterial material, Vector2 position, float radius)
+    public Water(Vector2 position, float radius)
     {
         _inverseMass = 0.1f;
         _radius = radius;
@@ -41,13 +41,19 @@ public class Point
     {
         _velocity += velocity;
     }
+
+    public void Update(float deltaTime, List<IObject> rigidBodies, List<Water> water)
+    {
+        Step(deltaTime);
+        ResolveCollisions(rigidBodies, water);
+    }
     
     public void Step(float deltaTime)
     {
         StepVelocity(deltaTime);
     }
 
-    public void ResolveCollisions(List<IObject> rigidBodies, List<IObject> softBodies, List<Point> points, SoftBody parent)
+    public void ResolveCollisions(List<IObject> rigidBodies, List<Water> water)
     {
         foreach (var iObject in rigidBodies)
         {
@@ -56,47 +62,25 @@ public class Point
             if (!RayCasting.IsColliding(_position, iBody.GetVectors(), out var displacedPoint,
                     out var normal)) continue;
             
-            _velocity -= 2 * Vector2.Dot(_velocity, normal) * normal;
+            _velocity -= 1.5f * Vector2.Dot(_velocity, normal) * normal;
             _previousPosition = _position;
             _position = displacedPoint;
         }
-
-        foreach (var point in points)
+        
+        foreach (var waterDrop in water)
         {
-            if (point == this) continue;
-            if (IsColliding(this, point, out Vector2 normal, out float depth))
+            if (waterDrop == this) continue;
+            
+            if (IsColliding(this, waterDrop, out Vector2 normal, out float depth))
             {
                 _previousPosition = _position;
-                point._previousPosition = point._position;
+                waterDrop._previousPosition = waterDrop._position;
                 
-                _velocity -= 2 * Vector2.Dot(_velocity, normal) * normal;
-                point._velocity -= 2 * Vector2.Dot(point._velocity, -normal) * -normal;
+                _velocity -= 1.5f * Vector2.Dot(_velocity, normal) * normal;
+                waterDrop._velocity -= 1.5f * Vector2.Dot(waterDrop._velocity, -normal) * -normal;
                 
                 _position -= normal * depth / 2;
-                point._position += normal * depth / 2;
-            }
-        }
-        
-        foreach (var softBody in softBodies)
-        {
-            SoftBody iBody = (SoftBody)softBody;
-            if (iBody == parent) continue;
-            
-            List<Point> bodyPoints = iBody.GetPoints();
-            
-            foreach (var point in bodyPoints)
-            {
-                if (IsColliding(this, point, out Vector2 normal, out float depth))
-                {
-                    _previousPosition = _position;
-                    point._previousPosition = point._position;
-                
-                    _velocity -= 2 * Vector2.Dot(_velocity, normal) * normal;
-                    point._velocity -= 2 * Vector2.Dot(point._velocity, -normal) * -normal;
-                
-                    _position -= normal * depth / 2;
-                    point._position += normal * depth / 2;
-                }
+                waterDrop._position += normal * depth / 2;
             }
         }
     }
@@ -120,7 +104,7 @@ public class Point
         return _velocity;
     }
 
-    private static bool IsColliding(Point pointA, Point pointB, out Vector2 normal, out float depth)
+    private static bool IsColliding(Water pointA, Water pointB, out Vector2 normal, out float depth)
     {
         depth = Vector2.Distance(pointA._position, pointB._position);
         normal = pointB._position - pointA._position;

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Physics.Bodies;
 using Physics.Materials;
@@ -6,11 +7,9 @@ namespace Physics.Objects.RigidBodies;
 
 public class Square : RigidBody, IObject
 {
-    public float radius;
-
-    public void Update(IObject[] objects, float deltaTime)
+    public void Update(List<IObject> rigidBodies, List<IObject> softBodies, float deltaTime)
     {
-        Step(objects, deltaTime);
+        Step(rigidBodies, deltaTime);
     }
 
     private Square(IMaterial material, Skeleton skeleton, bool isStatic) : base(material, skeleton, isStatic) {}
@@ -20,39 +19,24 @@ public class Square : RigidBody, IObject
         Skeleton skeleton = new Skeleton();
 
         float adjustment = (float) 0.5 * size;
-        skeleton.AddPositions(new Position[]
+        skeleton.AddVectors(new Vector2[]
         {
-            new Position(centroid.X + adjustment, centroid.Y + adjustment),
-            new Position(centroid.X - adjustment, centroid.Y + adjustment),
-            new Position(centroid.X - adjustment, centroid.Y - adjustment),
-            new Position(centroid.X + adjustment, centroid.Y - adjustment)
+            new Vector2(centroid.X + adjustment, centroid.Y + adjustment),
+            new Vector2(centroid.X - adjustment, centroid.Y + adjustment),
+            new Vector2(centroid.X - adjustment, centroid.Y - adjustment),
+            new Vector2(centroid.X + adjustment, centroid.Y - adjustment)
         });
         
         return new Square(material, skeleton, isStatic);
     }
     
-    public Vector2[] GetVectors()
+    public List<Vector2> GetVectors()
     {
-        return _skeleton.GetVectors();
-    }
-    
-    public Vector2 GetCentroid()
-    {
-        return _skeleton.GetCentroid();
-    }
-    
-    public RigidBody GetBody()
-    {
-        return this;
-    }
-    
-    public Vector2[] GetContactPoints()
-    {
-        return contactPoints;
+        return Skeleton.GetVectors();
     }
 
-    public void Move(Vector2 vector)
+    public IBody GetBody()
     {
-        _skeleton.Move(vector);
+        return this;
     }
 }

@@ -1,8 +1,11 @@
+using Microsoft.Xna.Framework;
+
 namespace Physics.Materials;
 
 public interface IMaterial
 {
-    public float Density { get; set;  }
-    public float Restitution { get; set; }
-    public bool Static { get; set; }
+    public float Density { get; }
+    public float Friction { get; }
+    public float Restitution { get; }
+    public Color Color { get; }
 }

@@ -5,29 +5,31 @@ using Physics.Materials;
 
 namespace Physics.Objects.RigidBodies;
 
-public class Square : RigidBody, IObject
+public class Hexagon : RigidBody, IObject
 {
-    public void Update(List<IObject> objects, float deltaTime)
+    public void Update(List<IObject> rigidBodies, List<IObject> softBodies, float deltaTime)
     {
-        Step(objects, deltaTime);
+        Step(rigidBodies, deltaTime);
     }
 
-    private Square(IMaterial material, Skeleton skeleton, bool isStatic) : base(material, skeleton, isStatic) {}
+    private Hexagon(IMaterial material, Skeleton skeleton, bool isStatic) : base(material, skeleton, isStatic) {}
 
-    public static Square FromSize(IMaterial material, Vector2 centroid, float size, bool isStatic = false)
+    public static Hexagon FromSize(IMaterial material, Vector2 centroid, float size, bool isStatic = false)
     {
         Skeleton skeleton = new Skeleton();
 
         float adjustment = (float) 0.5 * size;
         skeleton.AddVectors(new Vector2[]
         {
-            new Vector2(centroid.X + adjustment, centroid.Y + adjustment),
-            new Vector2(centroid.X - adjustment, centroid.Y + adjustment),
-            new Vector2(centroid.X - adjustment, centroid.Y - adjustment),
-            new Vector2(centroid.X + adjustment, centroid.Y - adjustment)
+            new Vector2(centroid.X + (adjustment * 0.5f), centroid.Y + adjustment),
+            new Vector2(centroid.X - (adjustment * 0.5f), centroid.Y + adjustment),
+            new Vector2(centroid.X - adjustment, centroid.Y),
+            new Vector2(centroid.X - (adjustment * 0.5f), centroid.Y - adjustment),
+            new Vector2(centroid.X + (adjustment * 0.5f), centroid.Y - adjustment),
+            new Vector2(centroid.X + adjustment, centroid.Y)
         });
         
-        return new Square(material, skeleton, isStatic);
+        return new Hexagon(material, skeleton, isStatic);
     }
     
     public List<Vector2> GetVectors()

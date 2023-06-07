@@ -2,10 +2,10 @@ using Microsoft.Xna.Framework;
 
 namespace Physics.Materials;
 
-public class Rubber : IMaterial
+public class Metal : IMaterial
 {
-    public float Density { get; } = 11;
-    public float Restitution { get; } = 0.7f;
-    public float Friction { get;  } = 0.5f;
-    public Color Color { get; } = Color.Gray;
+    public float Density { get; } = 15;
+    public float Restitution { get; } = 0.3f;
+    public float Friction { get;  } = 1f;
+    public Color Color { get; } = Color.White;
 }

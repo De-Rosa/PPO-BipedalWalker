@@ -1,6 +1,5 @@
+using Physics.Objects;
+
 namespace Physics.Bodies;
 
-public class IBody
-{
-    
-}
+public interface IBody {}

@@ -2,11 +2,10 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Physics.Bodies;
 
-namespace Physics.Objects.RigidBodies;
+namespace Physics.Objects;
 
 public interface IObject
 { 
-    public void Update(List<IObject> objects, float deltaTime);
-    public List<Vector2> GetVectors();
-    public RigidBody GetBody();
+    public void Update(List<IObject> rigidBodies, List<IObject> softBodies, float deltaTime);
+    public IBody GetBody();
 }

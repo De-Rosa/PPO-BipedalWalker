@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace Physics.Walker.PPO;
 
 // https://docs.google.com/document/d/1FZZvz0JMHKWOOVlXnrmeRMoGpyjqa0m6Q0S2qLECDpA
@@ -9,7 +12,98 @@ namespace Physics.Walker.PPO;
 
 public class NeuralNetwork
 {
-    private Layer[] _layers;
-    private DenseLayer[] _weights;
+    private List<Layer> _layers;
+    private List<DenseLayer> _denseLayers;
+    private List<Matrix> _cache;
+
+    public NeuralNetwork()
+    {
+        _layers = new List<Layer>();
+        _denseLayers = new List<DenseLayer>();
+        _cache = new List<Matrix>();
+    }
     
+    public void AddLayer(Layer layer)
+    {
+        _layers.Add(layer);
+    }
+
+    public void AddLayer(DenseLayer layer)
+    {
+        _layers.Add(layer);
+        _denseLayers.Add(layer);
+    }
+
+    public Matrix FeedForward(Matrix matrix)
+    {
+        _cache.Clear();
+        
+        foreach (var layer in _layers)
+        {
+            _cache.Add(matrix);
+            matrix = layer.FeedForward(matrix);
+        }
+
+        return matrix;
+    }
+
+    public Matrix FeedBack(Matrix gradient)
+    {
+        for (int i = _layers.Count - 1; i >= 0; i--)
+        {
+            gradient = _layers[i].FeedBack(_cache[i], gradient);
+        }
+
+        return gradient;
+    }
+
+    public void Optimise()
+    {
+        foreach (var denseLayer in _denseLayers)
+        {
+            denseLayer.Adam();
+        }
+
+        foreach (var denseLayer in _denseLayers)
+        {
+            denseLayer.ZeroGradients();
+        }
+    }
+
+    public void SaveLayers(string fileLocation)
+    {
+        throw new NotImplementedException();
+    }
+    
+    public void LoadLayers(string fileLocation)
+    {
+        throw new NotImplementedException();
+    }
+
+    public NeuralNetwork Clone()
+    {
+        NeuralNetwork newNetwork = new NeuralNetwork();
+        for (int i = 0; i < _layers.Count; i++)
+        {
+            Layer clonedLayer = _layers[i].Clone();
+            if (_denseLayers.Contains((DenseLayer) _layers[i]))
+            {
+                newNetwork.AddLayer((DenseLayer) clonedLayer);
+            }
+            else
+            {
+                newNetwork.AddLayer(clonedLayer);
+            }
+        }
+
+        return newNetwork;
+    }
+
+    public void Zero()
+    {
+        foreach (var denseLayer in _denseLayers)
+        {
+            denseLayer.ZeroGradients();
+        }
+    }
 }
