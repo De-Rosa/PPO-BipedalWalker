@@ -28,11 +28,6 @@ public class Triangle : RigidBody, IObject
         
         return new Triangle(material, skeleton, isStatic);
     }
-    
-    public List<Vector2> GetVectors()
-    {
-        return Skeleton.GetVectors();
-    }
 
     public IBody GetBody()
     {

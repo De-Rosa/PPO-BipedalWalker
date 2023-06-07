@@ -31,11 +31,6 @@ public class Pole : RigidBody, IObject
         
         return new Pole(material, skeleton, isStatic, isFloor);
     }
-    
-    public List<Vector2> GetVectors()
-    {
-        return Skeleton.GetVectors();
-    }
 
     public IBody GetBody()
     {

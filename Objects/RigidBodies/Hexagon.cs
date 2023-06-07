@@ -31,11 +31,6 @@ public class Hexagon : RigidBody, IObject
         
         return new Hexagon(material, skeleton, isStatic);
     }
-    
-    public List<Vector2> GetVectors()
-    {
-        return Skeleton.GetVectors();
-    }
 
     public IBody GetBody()
     {

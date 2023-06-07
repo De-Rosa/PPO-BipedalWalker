@@ -74,8 +74,6 @@ public class RigidBody : IBody
 
     private void ResolveCollisions(List<IObject> objects, float deltaTime)
     {
-        bool collided = false;
-        
         foreach (var iObject in objects)
         {
             if (iObject == this) continue;

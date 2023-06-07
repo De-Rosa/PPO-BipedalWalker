@@ -140,11 +140,11 @@ public class Game1 : Game
         const int segments = 10;
         const int roughness = 100;
         
-        int initialY = 1050;
+        int initialY = 800;
         int initialX = -50;
         
         Random random = new Random();
-        Vector2 previousVector = new Vector2(initialX, 800 + random.Next(0, roughness));
+        Vector2 previousVector = new Vector2(initialX, initialY + random.Next(0, roughness));
         int movement = 1200 / segments;
 
         for (int i = 0; i < segments; i++)

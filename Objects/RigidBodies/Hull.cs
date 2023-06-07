@@ -26,12 +26,7 @@ public class Hull : RigidBody, IObject
 
         return FromSkeleton(material, skeleton, isStatic, isFragile, isFloor);
     }
-
-    public List<Vector2> GetVectors()
-    {
-        return Skeleton.GetVectors();
-    }
-
+    
     public IBody GetBody()
     {
         return this;

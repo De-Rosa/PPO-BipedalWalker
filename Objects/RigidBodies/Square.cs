@@ -30,11 +30,6 @@ public class Square : RigidBody, IObject
         return new Square(material, skeleton, isStatic);
     }
     
-    public List<Vector2> GetVectors()
-    {
-        return Skeleton.GetVectors();
-    }
-
     public IBody GetBody()
     {
         return this;
