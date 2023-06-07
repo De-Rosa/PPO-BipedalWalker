@@ -14,6 +14,7 @@ public partial class PPO
     
     // trains the critic neural network on test batches (approximate summing 5 numbers)
     // used to tweak hyper-parameters and check that the neural network is working
+    // will be deleted as final product
     public void TestTrain()
     {
         Random random = new Random();

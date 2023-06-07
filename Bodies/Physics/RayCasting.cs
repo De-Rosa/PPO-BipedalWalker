@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework;
 
 namespace Physics.Bodies.Physics;
 
-public class RayCasting
+public static class RayCasting
 {
     //https://rosettacode.org/wiki/Ray-casting_algorithm
     // TODO: remake this

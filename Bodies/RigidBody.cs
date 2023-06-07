@@ -31,14 +31,14 @@ public class RigidBody : IBody
     private float _angularVelocity;
     private float _angle;
 
-    private bool _fragile;
-    private bool _isFloor;
+    private readonly bool _fragile;
+    private readonly bool _isFloor;
     public bool Broken;
 
     public RigidBody(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isFragile = false, bool isFloor = false)
     {
         Skeleton = skeleton;
-        
+
         _restitution = material.Restitution;
         _friction = material.Friction;
         _associatedBodies = new List<RigidBody>();
@@ -57,8 +57,8 @@ public class RigidBody : IBody
         }
         else
         {
-            _inverseMass = material.Density;
-            _inverseInertia = 0.001f * material.Density;
+            _inverseMass = material.InverseMass;
+            _inverseInertia = 0.001f * material.InverseMass;
         }
     }
 

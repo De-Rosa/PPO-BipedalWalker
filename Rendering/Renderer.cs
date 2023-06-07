@@ -32,8 +32,6 @@ public sealed class Renderer
         {
             DrawLine(vectors[i], vectors[(i+1) % vectors.Count], color);
         }
-
-        if (vectors.Count == 0) return;
     }
 
     public void RenderSoftObject(IObject softObject)

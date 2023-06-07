@@ -78,7 +78,7 @@ public class Game1 : Game
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _renderer = new Renderer(_spriteBatch);
 
-        CreateObstacles();
+        CreateFloor();
     }
 
     protected override void Initialize()
@@ -95,8 +95,6 @@ public class Game1 : Game
     
     private void CreateObstacles()
     {
-        CreateFloor();
-        
         Vector2[] platformPositions = {
             new (100, 500), new (100, 450), new (400, 450), new (400, 500)
         };
@@ -115,9 +113,9 @@ public class Game1 : Game
 
         platform.Rotate(60);
         platform2.Rotate(-60);
-        //_rigidObjects.Add(platform);
-        //_rigidObjects.Add(platform2);
-        //_rigidObjects.Add(platform3);
+        _rigidObjects.Add(platform);
+        _rigidObjects.Add(platform2);
+        _rigidObjects.Add(platform3);
     }
 
     private void CreateFloor()
@@ -499,6 +497,6 @@ public class Game1 : Game
         _walker.CreateCreature(_rigidObjects);
         _water.Clear();
         EntityCount = 0;
-        CreateObstacles();
+        CreateFloor();
     }
 }

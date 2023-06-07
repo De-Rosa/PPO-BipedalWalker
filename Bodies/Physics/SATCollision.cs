@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework;
 
 namespace Physics.Bodies.Physics;
 
-public class SATCollision
+public static class SATCollision
 {
     public static bool IsColliding(List<Vector2> vectorA, List<Vector2> vectorB, Vector2 centroidA, Vector2 centroidB,
         out Vector2 normal, out float depth)
