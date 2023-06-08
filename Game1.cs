@@ -217,16 +217,17 @@ public class Game1 : Game
         
         for (int i = 0; i < Iterations; i++)
         {
-            for(int j=0; j<_rigidObjects.Count; j++)
-            {
-                _rigidObjects[j].Update(_rigidObjects, _softObjects, deltaTime);
-            };
-            
             foreach (var joint in _walker.GetJoints())
             {
                 joint.Step();
             }
             
+
+            foreach (var rigidObject in _rigidObjects)
+            {
+                rigidObject.Update(_rigidObjects, _softObjects, deltaTime);
+            };
+
             foreach (var softObject in _softObjects)
             {
                 softObject.Update(_rigidObjects, _softObjects, deltaTime);
@@ -404,7 +405,7 @@ public class Game1 : Game
             Steps += 1;
             _walker.Update();
 
-            TakeAction();
+            if (Steps != 1) TakeAction();
             StepObjects(deltaTime);
             CheckState();
         }
@@ -426,14 +427,14 @@ public class Game1 : Game
 
         if (_walker.GetPosition().X > 850)
         {
-            _currentReward += 500;
+            _currentReward += 1000;
             TerminalState();
             return;
         }
 
         if (_walker.Terminal || Steps >= 4000)
         {
-            _totalReward -= 500;
+            _totalReward -= 100;
             TerminalState();
             return;
         }
@@ -456,10 +457,10 @@ public class Game1 : Game
     // do position set by user?
     private void GetReward()
     {
-        _currentReward = _walker.GetChangeInPosition().X * 10;
+        _currentReward = _walker.GetChangeInPosition().X;
         if (_walker.GetPosition().Y > 850)
         {
-            _currentReward -= 0.1f;
+            _currentReward -= 0.01f;
         }
     }
 
@@ -491,12 +492,13 @@ public class Game1 : Game
 
     private void Reset()
     {
+        _walker.Reset();
         _rigidObjects.Clear();
         _softObjects.Clear();
-        _walker.Reset();
-        _walker.CreateCreature(_rigidObjects);
         _water.Clear();
         EntityCount = 0;
+        Steps = 0;
         CreateFloor();
+        _walker.CreateCreature(_rigidObjects);
     }
 }

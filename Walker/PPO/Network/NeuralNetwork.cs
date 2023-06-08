@@ -7,7 +7,6 @@ namespace Physics.Walker.PPO;
 // https://spinningup.openai.com/en/latest/algorithms/ppo.html#pseudocode
 // https://towardsdatascience.com/complete-guide-to-adam-optimization-1e5f29532c3d
 // https://machinelearningmastery.com/adam-optimization-from-scratch/
-// 2 layers, 64 neurons
 // stochastic gradient descent using Adam optimizer
 
 public class NeuralNetwork
@@ -86,7 +85,7 @@ public class NeuralNetwork
         for (int i = 0; i < _layers.Count; i++)
         {
             Layer clonedLayer = _layers[i].Clone();
-            if (_denseLayers.Contains((DenseLayer) _layers[i]))
+            if (_layers[i].GetType() == LayerType.DENSE)
             {
                 newNetwork.AddLayer((DenseLayer) clonedLayer);
             }

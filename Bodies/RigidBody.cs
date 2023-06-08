@@ -162,6 +162,11 @@ public class RigidBody : IBody
     {
         return _angularVelocity;
     }
+    
+    public float GetAngle()
+    {
+        return _angle;
+    }
 
     public float GetRestitution()
     {

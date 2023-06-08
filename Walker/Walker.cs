@@ -26,8 +26,8 @@ public class Walker
         _joints = new List<Joint>();
         _brain = new PPO.PPO(17, 8);
         _bodyParts = new BodyParts();
-        _material = new Wood();
-        _position = new Vector2(125, 850);
+        _material = new Carpet();
+        _position = new Vector2(125, 800);
         _previousPosition = _position;
         Terminal = false;
     }
@@ -50,21 +50,23 @@ public class Walker
     public void GetAction(Matrix state, out Matrix actions, out Matrix probabilities)
     {
         int action = _brain.SampleAction(state, out actions, out probabilities);
-        
         if (action >= 4)
         {
             action -= 4;
-            _joints[action + 2].ApplyTorque(-2);
+            _joints[action + 2].ApplyTorque(-3);
             return;
         }
         
-        _joints[action + 2].ApplyTorque(2);
+        _joints[action + 2].ApplyTorque(3);
     }
 
     public void Train(Trajectory trajectory)
     {
-        _brain.RolloutRewards(trajectory);
+        _brain.MonteCarloReturn(trajectory);
         _brain.CalculateAdvantages(trajectory);
+        _brain.NormaliseAdvantages(trajectory);
+
+        //_brain.RemoveTerminalState(trajectory);
         _brain.Train(trajectory);
     }
     
@@ -86,11 +88,11 @@ public class Walker
     {
         float[] values = new[]
         {
-            _bodyParts.LeftLegLowerSegment.GetAngularVelocity(),
-            _bodyParts.LeftLegUpperSegment.GetAngularVelocity(),
-            _bodyParts.RightLegLowerSegment.GetAngularVelocity(),
-            _bodyParts.RightLegUpperSegment.GetAngularVelocity(), 
-            _bodyParts.Body.GetAngularVelocity(),
+            _bodyParts.LeftLegLowerSegment.GetAngle(),
+            _bodyParts.LeftLegUpperSegment.GetAngle(),
+            _bodyParts.RightLegLowerSegment.GetAngle(),
+            _bodyParts.RightLegUpperSegment.GetAngle(), 
+            _bodyParts.Body.GetAngle(),
                 
             _bodyParts.LeftLegLowerSegment.GetLinearVelocity().Y,
             _bodyParts.LeftLegUpperSegment.GetLinearVelocity().Y,
@@ -115,12 +117,12 @@ public class Walker
     {
         Vector2[] squareVectors = new Vector2[]
         {
-            new Vector2(_position.X + 7.5f, _position.Y + 5f), 
-            new Vector2(_position.X, _position.Y + 5f),
-            new Vector2(_position.X - 7.5f, _position.Y + 5f),
-            new Vector2(_position.X - 7.5f, _position.Y - 5f),
-            new Vector2(_position.X, _position.Y - 5f),
-            new Vector2(_position.X + 7.5f, _position.Y - 5f)
+            new Vector2(_position.X + 7.5f, _position.Y + 5f - 10), 
+            new Vector2(_position.X, _position.Y + 5f - 10),
+            new Vector2(_position.X - 7.5f, _position.Y + 5f - 10),
+            new Vector2(_position.X - 7.5f, _position.Y - 5f - 10),
+            new Vector2(_position.X, _position.Y - 5f - 10),
+            new Vector2(_position.X + 7.5f, _position.Y - 5f - 10)
         };
         
         Skeleton squareSkeleton = new Skeleton();
@@ -132,11 +134,11 @@ public class Walker
         Skeleton bodySkeleton = new Skeleton();
         bodySkeleton.AddVectors(new Vector2[]
         {
-            new Vector2(_position.X + 20, _position.Y + 20), // bottom right
-            new Vector2(_position.X, _position.Y + 20), // bottom middle
-            new Vector2(_position.X - 20, _position.Y + 20), // bottom left
-            new Vector2(_position.X - 20, _position.Y - 20), // top left
-            new Vector2(_position.X + 20, _position.Y - 20) // top right
+            new Vector2(_position.X + 20, _position.Y + 20 - 50), // bottom right
+            new Vector2(_position.X, _position.Y + 20 - 50), // bottom middle
+            new Vector2(_position.X - 20, _position.Y + 20 - 50), // bottom left
+            new Vector2(_position.X - 20, _position.Y - 20 - 50), // top left
+            new Vector2(_position.X + 20, _position.Y - 20 - 50) // top right
         });
 
         _bodyParts.Body = Hull.FromSkeleton(_material, bodySkeleton, isFragile: true);
@@ -144,11 +146,11 @@ public class Walker
         _bodyParts.LeftSquare = Hull.FromSkeleton(_material, squareSkeleton);
         _bodyParts.RightSquare = Hull.FromSkeleton(_material, squareSkeleton2);
 
-        _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position, 75);
-        _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position, 75, isFloor: true);
+        _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
+        _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50), 75, isFloor: true);
         
-        _bodyParts.RightLegUpperSegment = Pole.FromSize(_material, _position, 75);
-        _bodyParts.RightLegLowerSegment = Pole.FromSize(_material, _position, 75, isFloor: true);
+        _bodyParts.RightLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
+        _bodyParts.RightLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50), 75, isFloor: true);
         
         rigidBodies.AddRange(new IObject[] {_bodyParts.LeftSquare, _bodyParts.RightSquare, _bodyParts.LeftLegLowerSegment, _bodyParts.LeftLegUpperSegment, _bodyParts.Body, _bodyParts.RightLegLowerSegment, _bodyParts.RightLegUpperSegment});
     }
@@ -192,7 +194,8 @@ public class Walker
         _joints.Clear();
         _bodyParts = new BodyParts();
         Terminal = false;
-        _position = new Vector2(125, 850);
+        
+        _position = new Vector2(125, 800);
         _previousPosition = _position;
     }
 

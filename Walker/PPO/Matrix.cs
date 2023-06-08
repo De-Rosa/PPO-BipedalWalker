@@ -60,6 +60,26 @@ public class Matrix
         matrix.Randomise();
         return matrix;
     }
+    
+    // https://stackoverflow.com/questions/53830488/neural-network-only-producing-values-of-1-when-i-add-more-hidden-layers
+    // https://datascience.stackexchange.com/questions/102036/where-does-the-normal-glorot-initialization-come-from
+    // https://machinelearningmastery.com/weight-initialization-for-deep-learning-neural-networks/
+    public static Matrix FromXavier(int height, int length)
+    {
+        Matrix matrix = Matrix.FromSize(height, length);
+        Random random = new Random();
+        float std = MathF.Sqrt(2f / (height + length));
+        
+        for (int i = 0; i < height; i++)
+        {
+            for (int j = 0; j < length; j++)
+            {
+                matrix._values[i][j] = NormalDistribution.BoxMullerTransform(0, std, random);
+            }
+        }
+
+        return matrix;
+    }
 
     public static Matrix FromZeroes(int height, int length)
     {

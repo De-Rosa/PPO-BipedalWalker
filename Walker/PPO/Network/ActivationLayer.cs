@@ -17,6 +17,11 @@ public abstract class ActivationLayer : Layer
         return Matrix.HadamardProduct(gradient, Matrix.PerformOperation(matrix, DerivativeActivation));
     }
 
+    public override LayerType GetType()
+    {
+        return LayerType.ACTIVATION;
+    }
+
     protected abstract float Activation(float value);
 
     protected abstract float DerivativeActivation(float value);

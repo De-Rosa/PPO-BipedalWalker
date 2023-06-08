@@ -28,8 +28,8 @@ public class DenseLayer : Layer
     
     public DenseLayer(int inputSize, int outputSize)
     {
-        _weights = Matrix.FromRandom(outputSize, inputSize);
-        _biases = Matrix.FromZeroes(outputSize, 1);
+        _weights = Matrix.FromXavier(outputSize, inputSize);
+        _biases = Matrix.FromXavier(outputSize, 1);
 
         _iteration = 0;
         
@@ -57,6 +57,11 @@ public class DenseLayer : Layer
             _varianceGradientBiases = _varianceGradientBiases.Clone(),
             _iteration = _iteration
         };
+    }
+
+    public override LayerType GetType()
+    {
+        return LayerType.DENSE;
     }
 
     public override Matrix FeedForward(Matrix matrix)
