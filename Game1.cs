@@ -417,7 +417,7 @@ public class Game1 : Game
         
         _walker.GetAction(state, out Matrix actions, out Matrix probabilities);
         _currentTrajectory.Actions.Add(actions);
-        _currentTrajectory.ActionProbabilities.Add(probabilities);
+        _currentTrajectory.Probabilities.Add(probabilities);
     }
 
     private void CheckState()

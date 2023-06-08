@@ -19,7 +19,6 @@ public class Walker
     private BodyParts _bodyParts;
     private readonly PPO.PPO _brain;
 
-    public float Fatigue;
     public bool Terminal;
 
     public Walker()
@@ -31,7 +30,6 @@ public class Walker
         _position = new Vector2(125, 850);
         _previousPosition = _position;
         Terminal = false;
-        Fatigue = 0;
     }
     
     public void CreateCreature(List<IObject> rigidBodies)
@@ -61,13 +59,12 @@ public class Walker
         }
         
         _joints[action + 2].ApplyTorque(2);
-
-        Fatigue += 1;
     }
 
     public void Train(Trajectory trajectory)
     {
         _brain.RolloutRewards(trajectory);
+        _brain.CalculateAdvantages(trajectory);
         _brain.Train(trajectory);
     }
     
@@ -202,7 +199,6 @@ public class Walker
     public void RepairBody()
     {
         _bodyParts.Body.Broken = false;
-        Fatigue = 0;
     }
 }
 
