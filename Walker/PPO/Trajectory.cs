@@ -9,7 +9,11 @@ public class Trajectory
 {
     public List<Matrix> States;
     public List<Matrix> Actions;
-    public List<Matrix> Probabilities;
+    public List<Matrix> LogProbabilities;
+
+    public List<Matrix> Means;
+    public List<Matrix> Stds;
+    
     public List<float> Advantages;
     public List<float> Rewards;
     public List<float> Returns;
@@ -19,7 +23,9 @@ public class Trajectory
     {
         States = new List<Matrix>();
         Actions = new List<Matrix>();
-        Probabilities = new List<Matrix>();
+        LogProbabilities = new List<Matrix>();
+        Means = new List<Matrix>();
+        Stds = new List<Matrix>();
         Rewards = new List<float>();
         Advantages = new List<float>();
         Returns = new List<float>();
@@ -32,7 +38,9 @@ public class Trajectory
         {
             States = States.ToList(),
             Actions = Actions.ToList(),
-            Probabilities = Probabilities.ToList(),
+            Means = Means.ToList(),
+            Stds = Stds.ToList(),
+            LogProbabilities = LogProbabilities.ToList(),
             Advantages = Advantages.ToList(),
             Rewards = Rewards.ToList(),
             Returns = Returns.ToList(),

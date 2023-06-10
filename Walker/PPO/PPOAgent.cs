@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -10,8 +11,8 @@ namespace Physics.Walker.PPO;
 public partial class PPOAgent
 {
     private readonly NeuralNetwork _criticNetwork;
-    private readonly NeuralNetwork _actorNetwork;
-    private NeuralNetwork _oldActorNetwork;
+    private readonly NeuralNetwork _actorNetworkMean;
+    private readonly NeuralNetwork _actorNetworkStd;
 
     private const int DenseSize = 32;
     private const int Epochs = 5;
@@ -29,21 +30,24 @@ public partial class PPOAgent
         _criticNetwork.AddLayer(new DenseLayer(DenseSize, 1));
 
 
-        // Actor neural network performs an action based on a given state
-        _actorNetwork = new NeuralNetwork();
-        _actorNetwork.AddLayer(new DenseLayer(stateSize, DenseSize));
-        _actorNetwork.AddLayer(new ReLULayer());
-        _actorNetwork.AddLayer(new DenseLayer(DenseSize, actionSize));
-        _actorNetwork.AddLayer(new TanhLayer());
-        _actorNetwork.AddLayer(new SoftmaxLayer());
+        // Actor mean neural network calculates a mean for a given action.
+        _actorNetworkMean = new NeuralNetwork();
+        _actorNetworkMean.AddLayer(new DenseLayer(stateSize, DenseSize));
+        _actorNetworkMean.AddLayer(new ReLULayer());
+        _actorNetworkMean.AddLayer(new DenseLayer(DenseSize, actionSize));
+        _actorNetworkMean.AddLayer(new TanhLayer());
+        
 
-        _oldActorNetwork = _actorNetwork;
+        // Actor standard deviation neural network calculates a standard deviation for a given action.
+        // It is used so that when rewards are high, standard deviations fall so that the randomness in the actions becomes limited.
+        _actorNetworkStd = new NeuralNetwork();
+        _actorNetworkStd.AddLayer(new DenseLayer(stateSize, actionSize));
     }
 
     public void Save(string criticFileLocation, string actorFileLocation)
     {
         string[] criticNetwork = _criticNetwork.Save();
-        string[] actorNetwork = _actorNetwork.Save();
+        string[] actorNetwork = _actorNetworkMean.Save();
 
         File.WriteAllLines(criticFileLocation, criticNetwork);
         File.WriteAllLines(actorFileLocation, actorNetwork);
@@ -61,7 +65,7 @@ public partial class PPOAgent
         }
         
         _criticNetwork.Load(criticNetwork);
-        _actorNetwork.Load(actorNetwork);
+        _actorNetworkMean.Load(actorNetwork);
     }
 
     public void Train(Trajectory trajectory)
@@ -102,67 +106,88 @@ public partial class PPOAgent
     
     private void TrainActor(Batch batch)
     {
-        _actorNetwork.Zero();
+        _actorNetworkMean.Zero();
 
-        Matrix actorLoss = Matrix.FromSize(batch.Probabilities[0].GetHeight(), 1);
-        
+        // https://fse.studenttheses.ub.rug.nl/25709/1/mAI_2021_BickD.pdf
         for (int i = 0; i < BatchSize; i++)
         {
-            // L Clip calculation
-            Matrix newProbabilities = GetActionProbabilities(batch.States[i]);
-            Matrix oldProbabilities = GetOldActionProbabilities(batch.States[i]);
-            
-            Matrix ratio = Matrix.HadamardDivision(newProbabilities, oldProbabilities);
-
-            Matrix ratioAdvantage = ratio * batch.Advantages[i];
-            Matrix clippedRatio = Matrix.Clip(ratio, (1 + Epsilon), (1 - Epsilon));
+            SampleActions(batch.States[i], out Matrix logProbabilities, out Matrix mean, out Matrix std);
+            // Derivative of L Clip
+            // Equation 20
+            Matrix ratio = Matrix.Exponential(logProbabilities - batch.LogProbabilities[i]);
+            Matrix clippedRatio = Matrix.Clip(ratio, 1 + Epsilon, 1 - Epsilon);
             Matrix clippedRatioAdvantage = clippedRatio * batch.Advantages[i];
+            Matrix ratioAdvantage = ratio * batch.Advantages[i];
 
-            Matrix minRatio = Matrix.Min(ratioAdvantage, clippedRatioAdvantage);
-            actorLoss += minRatio;
+            Matrix partA = Matrix.Compare(ratioAdvantage, clippedRatioAdvantage, 1, 0);
+            partA *= batch.Advantages[i];
+
+            Matrix partB = Matrix.CompareNonEquals(clippedRatioAdvantage, ratioAdvantage, 1, 0);
+            partB *= batch.Advantages[i];
+
+            Matrix partC = Matrix.CompareInRange(ratio, 1 + Epsilon, 1 - Epsilon, 1, 0);
+
+            Matrix lClipDerivative = partA + Matrix.HadamardProduct(partB, partC);
+            lClipDerivative *= -1;
+            lClipDerivative = Matrix.HadamardDivision(lClipDerivative, Matrix.Exponential(batch.LogProbabilities[i]));
+
+            // Derivative of mean
+            // Equation 26
+            Matrix probabilities = Matrix.Exponential(logProbabilities);
+            
+            Matrix actionsMinusMean = batch.Actions[i] - mean;
+            Matrix variance = Matrix.HadamardProduct(std, std);
+
+            Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  (Matrix.HadamardDivision(actionsMinusMean, variance + 1e-9f)));
+            meanDerivative = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
+            meanDerivative /= BatchSize;
+            
+            _actorNetworkMean.FeedBack(meanDerivative);
         }
-
-        actorLoss /= BatchSize;
         
-        _oldActorNetwork = _actorNetwork.Clone();
-
-        _actorNetwork.FeedBack(actorLoss);
-        _actorNetwork.Optimise();
+        _actorNetworkMean.Optimise();
     }
-    
+
     // We calculate V(s) which is called the value function. This is the discounted returns if the AI behaves as expected, and does not take
     // into account the randomness of taking actions
     private float GetValueEstimate(Matrix state)
     {
         return _criticNetwork.FeedForward(state).GetValue(0,0);
     }
-    
-    public int SampleAction(Matrix state, out Matrix probabilities)
-    {
-        probabilities = GetActionProbabilities(state);
-        
-        Random random = new Random();
-        float number = (float) random.NextDouble();
 
-        float sum = 0;
+    public Matrix SampleActions(Matrix state, out Matrix logProbabilities, out Matrix mean, out Matrix std)
+    {
+        const float stdValue = 0.3f;
         
-        for (int i = 0; i < probabilities.GetHeight(); i++)
+        mean = GetMeanOutput(state);
+        std = Matrix.FromSize(mean.GetHeight(), 1);
+        for (int i = 0; i < mean.GetHeight(); i++)
         {
-            sum += probabilities.GetValue(i, 0);
-            if (number <= sum) return i;
+            std.SetValue(i, 0, stdValue);
         }
 
-        return 0;
+        Matrix actions = Matrix.SampleNormal(mean, std);
+        actions = Matrix.Clip(actions, 1, -1);
+
+        logProbabilities = GetLogProbability(mean, std, actions);
+
+        return actions;
     }
 
-    public Matrix GetActionProbabilities(Matrix state)
+    private static Matrix GetLogProbability(Matrix mean, Matrix std, Matrix actions)
     {
-        return _actorNetwork.FeedForward(state);
+        return Matrix.NormalDensities(mean, std, actions);
+    }
+
+    private Matrix GetMeanOutput(Matrix state)
+    {
+        return _actorNetworkMean.FeedForward(state);
     }
     
-    public Matrix GetOldActionProbabilities(Matrix state)
+    private Matrix GetStdOutput(Matrix state)
     {
-        return _oldActorNetwork.FeedForward(state);
+        const float std = 0.4f;
+        return _actorNetworkStd.FeedForward(state);
     }
 
     private void GeneralizedAdvantageEstimate(Trajectory trajectory)
@@ -225,19 +250,8 @@ public partial class PPOAgent
             trajectory.Advantages[i] /= std;
         }
     }
-    
-    public void CalculateAdvantages(Trajectory trajectory)
-    {
-        for (int i = 0; i < trajectory.States.Count; i++)
-        {
-            float valueEstimate = trajectory.Values[i];
-            float advantage = trajectory.Returns[i] - valueEstimate;
-            trajectory.Advantages.Add(advantage);
 
-        }
-    }
-    
-    public void MonteCarloReturn(Trajectory trajectory)
+    private void MonteCarloReturn(Trajectory trajectory)
     {
         for (int i = 0; i < trajectory.States.Count; i++)
         {
@@ -287,11 +301,14 @@ public partial class PPOAgent
             {
                 int index = random.Next(0, newTrajectory.States.Count - 1);
                 batch.States[j] = newTrajectory.States[index];
+                batch.Actions[j] = newTrajectory.Actions[index];
+                batch.Means[j] = newTrajectory.Means[index];
+                batch.Stds[j] = newTrajectory.Stds[index];
+                batch.LogProbabilities[j] = newTrajectory.LogProbabilities[index];
                 batch.Rewards[j] = newTrajectory.Rewards[index];
                 batch.Values[j] = newTrajectory.Values[index];
                 batch.Returns[j] = newTrajectory.Returns[index];
                 batch.Advantages[j] = newTrajectory.Advantages[index];
-                batch.Probabilities[j] = newTrajectory.Probabilities[index];
                 newTrajectory.States.RemoveAt(index);
             }
             batches.Add(batch);

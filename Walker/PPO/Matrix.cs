@@ -426,6 +426,27 @@ public class Matrix
         return newMatrix;
     }
     
+    public static Matrix CompareInRange(Matrix matrix, float upper, float lower, float inRangeValue, float otherValue)
+    {
+        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        for (int i = 0; i < matrix._height; i++)
+        {
+            for (int j = 0; j < matrix._length; j++)
+            {
+                if (matrix._values[i][j] >= lower && matrix._values[i][j] <= upper)
+                {
+                    newMatrix._values[i][j] = inRangeValue;
+                }
+                else
+                {
+                    newMatrix._values[i][j] = otherValue;
+                }
+            }
+        }
+
+        return newMatrix;
+    }
+    
     public static Matrix Clip(Matrix matrix, float upper)
     {
         Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
@@ -455,13 +476,59 @@ public class Matrix
         {
             for (int j = 0; j < newMatrix._length; j++)
             {
-                if (matrixA._values[i][j] < matrixB._values[i][j])
+                if (matrixA._values[i][j] <= matrixB._values[i][j])
                 {
                     newMatrix._values[i][j] = matrixA._values[i][j];
                 }
                 else
                 {
                     newMatrix._values[i][j] = matrixB._values[i][j];
+                }
+            }
+        }
+
+        return newMatrix;
+    }
+    
+    public static Matrix Compare(Matrix matrixA, Matrix matrixB, float minValue, float maxValue)
+    {
+        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+
+        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixA._length);
+        for (int i = 0; i < newMatrix._height; i++)
+        {
+            for (int j = 0; j < newMatrix._length; j++)
+            {
+                if (matrixA._values[i][j] <= matrixB._values[i][j])
+                {
+                    newMatrix._values[i][j] = minValue;
+                }
+                else
+                {
+                    newMatrix._values[i][j] = maxValue;
+                }
+            }
+        }
+
+        return newMatrix;
+    }
+    
+    public static Matrix CompareNonEquals(Matrix matrixA, Matrix matrixB, float minValue, float maxValue)
+    {
+        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+
+        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixA._length);
+        for (int i = 0; i < newMatrix._height; i++)
+        {
+            for (int j = 0; j < newMatrix._length; j++)
+            {
+                if (matrixA._values[i][j] < matrixB._values[i][j])
+                {
+                    newMatrix._values[i][j] = minValue;
+                }
+                else
+                {
+                    newMatrix._values[i][j] = maxValue;
                 }
             }
         }
@@ -477,6 +544,20 @@ public class Matrix
             for (int j = 0; j < matrix._length; j++)
             {
                 newMatrix._values[j][i] = matrix._values[i][j];
+            }
+        }
+
+        return newMatrix;
+    }
+    
+    public static Matrix Reciprocal(Matrix matrix)
+    {
+        Matrix newMatrix = Matrix.FromSize(matrix._length, matrix._height);
+        for (int i = 0; i < matrix._height; i++)
+        {
+            for (int j = 0; j < matrix._length; j++)
+            {
+                newMatrix._values[i][j] = 1 / matrix._values[i][j];
             }
         }
 
@@ -511,6 +592,38 @@ public class Matrix
             {
                 newMatrix._values[i][j] = operation(matrix._values[i][j]);
             }
+        }
+
+        return newMatrix;
+    }
+
+    public static Matrix SampleNormal(Matrix meanMatrix, Matrix stdMatrix)
+    {
+        Matrix newMatrix = Matrix.FromSize(meanMatrix._height, 1);
+        Random random = new Random();
+        
+        for (int i = 0; i < newMatrix._height; i++)
+        {
+            float mean = meanMatrix._values[i][0];
+            float std = stdMatrix._values[i][0];
+
+            newMatrix._values[i][0] = NormalDistribution.BoxMullerTransform(mean, std, random);
+        }
+
+        return newMatrix;
+    }
+
+    public static Matrix NormalDensities(Matrix meanMatrix, Matrix stdMatrix, Matrix actionMatrix)
+    {
+        Matrix newMatrix = Matrix.FromSize(meanMatrix._height, 1);
+        
+        for (int i = 0; i < newMatrix._height; i++)
+        {
+            float mean = meanMatrix._values[i][0];
+            float std = stdMatrix._values[i][0];
+            float action = actionMatrix._values[i][0];
+
+            newMatrix._values[i][0] = NormalDistribution.LogProbabilityDensity(mean, std, action);
         }
 
         return newMatrix;

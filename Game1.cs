@@ -88,7 +88,7 @@ public class Game1 : Game
         _graphics.SynchronizeWithVerticalRetrace = false;
         IsFixedTimeStep = false;
         _graphics.ApplyChanges();
-        
+
         base.Initialize();
     }
     
@@ -418,8 +418,13 @@ public class Game1 : Game
         Matrix state = _walker.GetState();
         _currentTrajectory.States.Add(state);
         
-        _walker.GetAction(state, out Matrix probabilities);
-        _currentTrajectory.Probabilities.Add(probabilities);
+        Matrix actions = _walker.GetActions(state, out Matrix probabilities, out Matrix mean, out Matrix std);
+        _walker.TakeActions(actions);
+        
+        _currentTrajectory.LogProbabilities.Add(probabilities);
+        _currentTrajectory.Means.Add(mean);
+        _currentTrajectory.Stds.Add(std);
+        _currentTrajectory.Actions.Add(actions);
     }
 
     private void CheckState()

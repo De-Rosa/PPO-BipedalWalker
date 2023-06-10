@@ -48,17 +48,18 @@ public class Walker
         if (_bodyParts.Body.Collided) Terminal = true;
     }
 
-    public void GetAction(Matrix state, out Matrix probabilities)
+    public Matrix GetActions(Matrix state, out Matrix probabilities, out Matrix mean, out Matrix std)
     {
-        int action = _brain.SampleAction(state, out probabilities);
-        if (action >= 4)
+        return _brain.SampleActions(state, out probabilities, out mean, out std);
+    }
+
+    public void TakeActions(Matrix actions)
+    {
+        for (int i = 2; i < _joints.Count; i++)
         {
-            action -= 4;
-            _joints[action + 2].ApplyTorque(-1);
-            return;
+            float torque = actions.GetValue(i, 0);
+            _joints[i].SetTorque(torque);
         }
-        
-        _joints[action + 2].ApplyTorque(1);
     }
 
     public void Train(Trajectory trajectory)
