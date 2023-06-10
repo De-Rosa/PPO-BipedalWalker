@@ -13,6 +13,7 @@ public class Trajectory
     public List<float> Advantages;
     public List<float> Rewards;
     public List<float> Returns;
+    public List<float> Values;
 
     public Trajectory()
     {
@@ -22,6 +23,7 @@ public class Trajectory
         Rewards = new List<float>();
         Advantages = new List<float>();
         Returns = new List<float>();
+        Values = new List<float>();
     }
 
     public Trajectory Copy()
@@ -33,7 +35,8 @@ public class Trajectory
             Probabilities = Probabilities.ToList(),
             Advantages = Advantages.ToList(),
             Rewards = Rewards.ToList(),
-            Returns = Returns.ToList()
+            Returns = Returns.ToList(),
+            Values = Values.ToList()
         };
 
         return trajectory;

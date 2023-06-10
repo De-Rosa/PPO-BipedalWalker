@@ -19,8 +19,8 @@ public class RigidBody : IBody
     private readonly bool _isStatic;
     private readonly Color _color;
     
-    private readonly float _inverseMass;
-    private readonly float _inverseInertia;
+    private float _inverseMass;
+    private float _inverseInertia;
     
     private readonly float _restitution;
     private readonly float _friction;
@@ -30,12 +30,12 @@ public class RigidBody : IBody
     
     private float _angularVelocity;
     private float _angle;
-
-    private readonly bool _fragile;
+    
+    private readonly bool _sensor;
     private readonly bool _isFloor;
-    public bool Broken;
+    public bool Collided;
 
-    public RigidBody(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isFragile = false, bool isFloor = false)
+    public RigidBody(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isSensor = false, bool isFloor = false)
     {
         Skeleton = skeleton;
 
@@ -44,9 +44,9 @@ public class RigidBody : IBody
         _associatedBodies = new List<RigidBody>();
         _color = material.Color;
         
-        _fragile = isFragile;
+        _sensor = isSensor;
         _isFloor = isFloor;
-        Broken = false;
+        Collided = false;
         
         _isStatic = isStatic;
         
@@ -74,6 +74,8 @@ public class RigidBody : IBody
 
     private void ResolveCollisions(List<IObject> objects, float deltaTime)
     {
+        Collided = false;
+        
         foreach (var iObject in objects)
         {
             if (iObject == this) continue;
@@ -87,7 +89,7 @@ public class RigidBody : IBody
             
             if (SATCollision.IsColliding(vectorA, vectorB, Skeleton.GetCentroid(), iBody.GetCentroid(), out Vector2 normal, out float depth))
             {
-                if (iBody._isFloor && _fragile) Broken = true;
+                if (iBody._isFloor && _sensor) Collided = true;
                 List<Vector2> contactPoints = ContactPoints.GetContactPoints(vectorA, vectorB, normal);
                 MoveObjects(this, iBody, normal, depth);
                 Impulses.ResolveCollisions(this, iBody, contactPoints, normal);
@@ -126,6 +128,17 @@ public class RigidBody : IBody
     public void AddAcceleration(Vector2 acceleration)
     {
         _acceleration += acceleration;
+    }
+
+    public void SetInverseMass(float inverseMass)
+    {
+        _inverseMass = inverseMass;
+        _inverseInertia = 0.001f * _inverseMass;
+    }
+    
+    public void SetInverseInertia(float inverseInertia)
+    {
+        _inverseInertia = inverseInertia;
     }
 
     public void SetLinearVelocity(Vector2 velocity)

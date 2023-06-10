@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Physics.Walker.PPO;
 
-public partial class PPO
+public partial class PPOAgent
 {
     
     private class TestStep

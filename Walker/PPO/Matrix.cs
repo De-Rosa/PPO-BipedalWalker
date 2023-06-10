@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace Physics.Walker.PPO;
 
@@ -87,6 +85,39 @@ public class Matrix
         matrix.Zero();
         return matrix;
     }
+
+    public static Matrix Load(Matrix matrix, string values)
+    {
+        float[] floatValues = Array.ConvertAll(values.Split(), float.Parse);
+        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        
+        for (int i = 0; i < newMatrix._height; i++)
+        {
+            for (int j = 0; j < newMatrix._length; j++)
+            {
+                int index = j + (i * newMatrix._length);
+                newMatrix._values[i][j] = floatValues[index];
+            }
+        }
+
+        return newMatrix;
+    }
+    
+    public static string Save(Matrix matrix)
+    {
+        float[] floatValues = new float[matrix._length * matrix._height];
+        
+        for (int i = 0; i < matrix._height; i++)
+        {
+            for (int j = 0; j < matrix._length; j++)
+            {
+                int index = j + (i * matrix._length);
+                floatValues[index] = matrix._values[i][j];
+            }
+        }
+
+        return string.Join(" ", floatValues);
+    }
     
     private Matrix(float[][] values)
     {
@@ -162,10 +193,25 @@ public class Matrix
         return sum / _height;
     }
 
+    public float[] ToArray()
+    {
+        if (_length != 1) throw new Exception($"Invalid matrix dimensions: trying to convert a matrix which is not length 1 into a list.");
+        float[] array = new float[_height];
+        
+        for (int i = 0; i < _height; i++)
+        {
+            array[i] = _values[i][0];
+        }
+
+        return array;
+    }
+
+
     public static Matrix Exponential(Matrix matrix)
     {
         return Matrix.PerformOperation(matrix, MathF.Exp);
     }
+    
     
     // slower when using multiple threads
     public static Matrix operator * (Matrix matrixA, Matrix matrixB)
@@ -488,9 +534,15 @@ public class Matrix
     private static float Multiply(int rowNum, int columnNum, Matrix matrixA, Matrix matrixB)
     {
         float[] rowA = matrixA.GetRow(rowNum);
-        float[] columnB = matrixB.GetColumn(columnNum); 
-        
-        return rowA.Select((row, i) => row * columnB[i]).Sum();
+        float[] columnB = matrixB.GetColumn(columnNum);
+        float sum = 0;
+
+        for (int i = 0; i < rowA.Length; i++)
+        {
+            sum += rowA[i] * columnB[i];
+        }
+
+        return sum;
     }
 
     public float GetValue(int height, int length)

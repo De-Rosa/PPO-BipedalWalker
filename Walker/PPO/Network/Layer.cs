@@ -13,5 +13,6 @@ public abstract class Layer
 public enum LayerType
 {
     DENSE,
-    ACTIVATION
+    ACTIVATION,
+    SOFTMAX
 }

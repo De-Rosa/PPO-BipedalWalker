@@ -11,9 +11,9 @@ namespace Physics.Walker.PPO;
 
 public class NeuralNetwork
 {
-    private List<Layer> _layers;
-    private List<DenseLayer> _denseLayers;
-    private List<Matrix> _cache;
+    private readonly List<Layer> _layers;
+    private readonly List<DenseLayer> _denseLayers;
+    private readonly List<Matrix> _cache;
 
     public NeuralNetwork()
     {
@@ -69,16 +69,6 @@ public class NeuralNetwork
         }
     }
 
-    public void SaveLayers(string fileLocation)
-    {
-        throw new NotImplementedException();
-    }
-    
-    public void LoadLayers(string fileLocation)
-    {
-        throw new NotImplementedException();
-    }
-
     public NeuralNetwork Clone()
     {
         NeuralNetwork newNetwork = new NeuralNetwork();
@@ -96,6 +86,25 @@ public class NeuralNetwork
         }
 
         return newNetwork;
+    }
+
+    public void Load(string[] contents)
+    {
+        for (int i = 0; i < contents.Length; i++)
+        {
+            _denseLayers[i].Load(contents[i]);
+        }
+    }
+
+    public string[] Save()
+    {
+        string[] contents = new string[_denseLayers.Count];
+        for (int i = 0; i < _denseLayers.Count; i++)
+        {
+            contents[i] = _denseLayers[i].Save();
+        }
+
+        return contents;
     }
 
     public void Zero()

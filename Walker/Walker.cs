@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Physics.Bodies;
 using Physics.Materials;
@@ -17,14 +18,14 @@ public class Walker
     private Vector2 _position;
     private Vector2 _previousPosition;
     private BodyParts _bodyParts;
-    private readonly PPO.PPO _brain;
+    private readonly PPO.PPOAgent _brain;
 
     public bool Terminal;
 
     public Walker()
     {
         _joints = new List<Joint>();
-        _brain = new PPO.PPO(17, 8);
+        _brain = new PPO.PPOAgent(17, 8);
         _bodyParts = new BodyParts();
         _material = new Carpet();
         _position = new Vector2(125, 800);
@@ -44,32 +45,52 @@ public class Walker
     {
         _previousPosition = _position;
         _position = _bodyParts.Body.GetCentroid();
-        if (_bodyParts.Body.Broken) Terminal = true;
+        if (_bodyParts.Body.Collided) Terminal = true;
     }
 
-    public void GetAction(Matrix state, out Matrix actions, out Matrix probabilities)
+    public void GetAction(Matrix state, out Matrix probabilities)
     {
-        int action = _brain.SampleAction(state, out actions, out probabilities);
+        int action = _brain.SampleAction(state, out probabilities);
         if (action >= 4)
         {
             action -= 4;
-            _joints[action + 2].ApplyTorque(-3);
+            _joints[action + 2].ApplyTorque(-1);
             return;
         }
         
-        _joints[action + 2].ApplyTorque(3);
+        _joints[action + 2].ApplyTorque(1);
     }
 
     public void Train(Trajectory trajectory)
     {
-        _brain.MonteCarloReturn(trajectory);
-        _brain.CalculateAdvantages(trajectory);
-        _brain.NormaliseAdvantages(trajectory);
-
-        //_brain.RemoveTerminalState(trajectory);
         _brain.Train(trajectory);
     }
-    
+
+    public void Save(string criticFileLocation, string actorFileLocation)
+    {
+        _brain.Save(criticFileLocation, actorFileLocation);
+    }
+
+    public void Load(string criticFileLocation, string actorFileLocation)
+    {
+        _brain.Load(criticFileLocation, actorFileLocation);
+    }
+
+    public List<Tuple<Vector2, Color>> GetJointColors()
+    {
+        List<Tuple<Vector2, Color>> colors = new List<Tuple<Vector2, Color>>();
+        
+        foreach (var joint in _joints)
+        {
+            Vector2 position = (joint.GetPointA() + joint.GetPointB()) / 2f;
+            float value = (joint.GetTorque() / 15f);
+            Color color = new Color(value * 255, 0, (1 - value) * 255, 100);
+            colors.Add(new Tuple<Vector2, Color>(position, color));
+        }
+
+        return colors;
+    }
+
     public List<Joint> GetJoints()
     {
         return _joints;
@@ -79,6 +100,7 @@ public class Walker
     {
         return _position;
     }
+    
     public Vector2 GetChangeInPosition()
     {
         return _position - _previousPosition;
@@ -88,11 +110,11 @@ public class Walker
     {
         float[] values = new[]
         {
-            _bodyParts.LeftLegLowerSegment.GetAngle(),
-            _bodyParts.LeftLegUpperSegment.GetAngle(),
-            _bodyParts.RightLegLowerSegment.GetAngle(),
-            _bodyParts.RightLegUpperSegment.GetAngle(), 
-            _bodyParts.Body.GetAngle(),
+            _bodyParts.LeftLegLowerSegment.GetAngularVelocity(),
+            _bodyParts.LeftLegUpperSegment.GetAngularVelocity(),
+            _bodyParts.RightLegLowerSegment.GetAngularVelocity(),
+            _bodyParts.RightLegUpperSegment.GetAngularVelocity(), 
+            _bodyParts.Body.GetAngularVelocity(),
                 
             _bodyParts.LeftLegLowerSegment.GetLinearVelocity().Y,
             _bodyParts.LeftLegUpperSegment.GetLinearVelocity().Y,
@@ -106,8 +128,8 @@ public class Walker
             _bodyParts.RightLegUpperSegment.GetLinearVelocity().X, 
             _bodyParts.Body.GetLinearVelocity().X,
             
-            GetPosition().X,
-            GetPosition().Y
+            _bodyParts.LeftLegLowerSegment.Collided ? 1 : 0,
+            _bodyParts.RightLegLowerSegment.Collided ? 1 : 0
         };
         
         return Matrix.FromValues(values);
@@ -142,29 +164,30 @@ public class Walker
         });
 
         _bodyParts.Body = Hull.FromSkeleton(_material, bodySkeleton, isFragile: true);
+        _bodyParts.Body.SetInverseInertia(0.001f);
 
         _bodyParts.LeftSquare = Hull.FromSkeleton(_material, squareSkeleton);
         _bodyParts.RightSquare = Hull.FromSkeleton(_material, squareSkeleton2);
 
         _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
         _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50), 75, isFloor: true);
-        
+
         _bodyParts.RightLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
         _bodyParts.RightLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50), 75, isFloor: true);
-        
+
         rigidBodies.AddRange(new IObject[] {_bodyParts.LeftSquare, _bodyParts.RightSquare, _bodyParts.LeftLegLowerSegment, _bodyParts.LeftLegUpperSegment, _bodyParts.Body, _bodyParts.RightLegLowerSegment, _bodyParts.RightLegUpperSegment});
     }
 
     private void CreateJoints()
     {
-        Joint bodyJointLeft = new Joint(_bodyParts.LeftSquare, _bodyParts.LeftLegUpperSegment, 1, 4);
-        Joint bodyJointRight = new Joint(_bodyParts.RightSquare, _bodyParts.RightLegUpperSegment, 1, 4);
         Joint squareLeftJoint = new Joint(_bodyParts.Body, _bodyParts.LeftSquare, 1, 4);
         Joint squareRightJoint = new Joint(_bodyParts.Body, _bodyParts.RightSquare, 1, 4);
+        Joint bodyJointLeft = new Joint(_bodyParts.LeftSquare, _bodyParts.LeftLegUpperSegment, 1, 4);
+        Joint bodyJointRight = new Joint(_bodyParts.RightSquare, _bodyParts.RightLegUpperSegment, 1, 4);
         Joint leftJoint = new Joint(_bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment, 2, 3);
         Joint rightJoint = new Joint(_bodyParts.RightLegUpperSegment, _bodyParts.RightLegLowerSegment, 2, 3);
 
-        _joints.AddRange(new []{bodyJointLeft, bodyJointRight, leftJoint, rightJoint, squareLeftJoint, squareRightJoint});
+        _joints.AddRange(new []{squareLeftJoint, squareRightJoint, bodyJointLeft, bodyJointRight, leftJoint, rightJoint});
     }
 
     private void AddAcceleration(Vector2 acceleration)
@@ -201,7 +224,7 @@ public class Walker
 
     public void RepairBody()
     {
-        _bodyParts.Body.Broken = false;
+        _bodyParts.Body.Collided = false;
     }
 }
 

@@ -15,7 +15,7 @@ public class Joint
     private readonly int _indexB;
 
     private float _currentTorque;
-    private const float MaxTorque = 15;
+    private const float MaxTorque = 16;
 
     public Joint(RigidBody bodyA, RigidBody bodyB, int pointIndexA, int pointIndexB)
     {
@@ -64,5 +64,10 @@ public class Joint
         if (_currentTorque + amount > MaxTorque || _currentTorque + amount < -MaxTorque) return;
         _currentTorque += amount;
         _bodyB.AddAngularVelocity(amount);
+    }
+
+    public float GetTorque()
+    {
+        return _currentTorque;
     }
 }

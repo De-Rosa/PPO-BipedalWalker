@@ -12,7 +12,7 @@ public class Hull : RigidBody, IObject
         Step(rigidBodies, deltaTime);
     }
 
-    private Hull(IMaterial material, Skeleton skeleton, bool isStatic,  bool isFragile, bool isFloor) : base(material, skeleton, isStatic, isFragile, isFloor) {}
+    private Hull(IMaterial material, Skeleton skeleton, bool isStatic,  bool isSensor, bool isFloor) : base(material, skeleton, isStatic, isSensor, isFloor) {}
 
     public static Hull FromSkeleton(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isFragile = false, bool isFloor = false)
     {

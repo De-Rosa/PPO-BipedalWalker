@@ -59,6 +59,25 @@ public class DenseLayer : Layer
         };
     }
 
+    public void Load(string contents)
+    {
+        int weightIndicator = contents.IndexOf("W", StringComparison.Ordinal) + 2;
+        int biasIndicator = contents.IndexOf("B", StringComparison.Ordinal) + 2;
+        string weights = contents.Substring(weightIndicator, biasIndicator - weightIndicator - 3);
+        string biases = contents.Substring(biasIndicator, contents.Length - biasIndicator);
+
+        Matrix.Load(_weights, weights);
+        Matrix.Load(_biases, biases);
+    }
+
+    public string Save()
+    {
+        string line = "";
+        line += "W " + Matrix.Save(_weights);
+        line += " B " + Matrix.Save(_biases);
+        return line;
+    }
+
     public override LayerType GetType()
     {
         return LayerType.DENSE;

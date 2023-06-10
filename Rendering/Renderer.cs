@@ -34,6 +34,14 @@ public sealed class Renderer
         }
     }
 
+    public void RenderJoint(List<Tuple<Vector2, Color>> colors)
+    {
+        foreach (var color in colors)
+        {
+            DrawSquare(color.Item1, 3, color.Item2, 2f);
+        }
+    }
+
     public void RenderSoftObject(IObject softObject)
     {
         SoftBody iBody = (SoftBody) softObject.GetBody();

@@ -47,17 +47,17 @@ public class Game1 : Game
     private Vector2[] _stringLine;
 
     private int Steps = 0;
-    private readonly List<Trajectory> _trajectories;
     private Trajectory _currentTrajectory;
     private float _currentReward;
-    private float _totalReward;
+    
+    private const string CriticFileLocation = "/Users/square/Projects/Physics/SavedModels/critic.txt";
+    private const string ActorFileLocation = "/Users/square/Projects/Physics/SavedModels/actor.txt";
     
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
         _input = new InputManager();
         _rigidObjects = new List<IObject>();
-        _trajectories = new List<Trajectory>();
         _currentTrajectory = new Trajectory();
         _softObjects = new List<IObject>();
         _water = new List<Water>();
@@ -65,7 +65,6 @@ public class Game1 : Game
         _dragging = null;
         _walker = new Walker.Walker();
         _currentReward = 0;
-        _totalReward = 0;
         
         _walker.CreateCreature(_rigidObjects);
         
@@ -192,6 +191,8 @@ public class Game1 : Game
         {
             _renderer.RenderRigidObject(iObject);
         }
+        
+        _renderer.RenderJoint(_walker.GetJointColors());
 
         foreach (var iObject in _softObjects)
         {
@@ -261,7 +262,7 @@ public class Game1 : Game
                 _rigidObjects.Add(triangle);
             }
             
-            if (_input.IsKeyPressed(Keys.K)) 
+            if (_input.IsKeyPressed(Keys.O)) 
             {
                 Pole pole = Pole.FromSize(_squareMaterial, _input.GetMousePosition(), EntitySize);
                 pole.AddAcceleration(new Vector2(0, 980f));
@@ -295,18 +296,6 @@ public class Game1 : Game
             }
         }
         
-        if (_input.IsKeyHeld(Keys.L))
-        {
-            Water water = new Water(_input.GetMousePosition(), 10);
-            water.AddAcceleration(new Vector2(0, 980));
-            _water.Add(water);
-        }
-
-        if (_input.IsKeyPressed(Keys.X))
-        {
-            RestartEnvironment();
-        }
-
         if (_input.IsKeyPressed(Keys.Q))
         {
             StartTraining();
@@ -335,6 +324,19 @@ public class Game1 : Game
         if (_input.IsKeyPressed(Keys.J))
         {
             _squareMaterial = new Carpet();
+        }
+        
+        if (_input.IsKeyPressed(Keys.K))
+        {
+            Console.WriteLine("Saving the current weights.");
+            _walker.Save(CriticFileLocation, ActorFileLocation);
+        }
+        
+        if (_input.IsKeyPressed(Keys.L))
+        {
+            Console.WriteLine("Loading the current weights.");
+            _walker.Load(CriticFileLocation, ActorFileLocation);
+            Reset();
         }
 
         if (_input.IsKeyPressed(Keys.Up))
@@ -416,8 +418,7 @@ public class Game1 : Game
         Matrix state = _walker.GetState();
         _currentTrajectory.States.Add(state);
         
-        _walker.GetAction(state, out Matrix actions, out Matrix probabilities);
-        _currentTrajectory.Actions.Add(actions);
+        _walker.GetAction(state, out Matrix probabilities);
         _currentTrajectory.Probabilities.Add(probabilities);
     }
 
@@ -434,19 +435,16 @@ public class Game1 : Game
 
         if (_walker.Terminal || Steps >= 4000)
         {
-            _totalReward -= 100;
+            _currentReward -= 100;
             TerminalState();
             return;
         }
         
         _currentTrajectory.Rewards.Add(_currentReward);
-        _totalReward += _currentReward;
     }
 
     private void TerminalState()
     {
-        Steps = 0;
-        _totalReward += _currentReward;
         _currentTrajectory.Rewards.Add(_currentReward);
         _walker.RepairBody();
         _walker.Terminal = false;
@@ -463,31 +461,18 @@ public class Game1 : Game
             _currentReward -= 0.01f;
         }
     }
-
-    private void RestartEnvironment()
-    {
-        Reset();
-        _trajectories.Add(_currentTrajectory);
-        _currentTrajectory = new Trajectory();
-    }
-
+    
     private void StartTraining()
     {
-        RestartEnvironment();
+        Reset();
         TrainNetworks();
-        _trajectories.Clear();
+        
+        _currentTrajectory = new Trajectory();
     }
 
     private void TrainNetworks()
     {
-        Console.WriteLine($"Total reward: {_totalReward}");
-        _totalReward = 0;
-
-        for (int i = 0; i < _trajectories.Count; i++)
-        {
-            Trajectory trajectory = _trajectories[i];
-            _walker.Train(trajectory);
-        }
+        _walker.Train(_currentTrajectory);
     }
 
     private void Reset()
