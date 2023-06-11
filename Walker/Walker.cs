@@ -25,7 +25,7 @@ public class Walker
     public Walker()
     {
         _joints = new List<Joint>();
-        _brain = new PPO.PPOAgent(17, 8);
+        _brain = new PPO.PPOAgent(17, 4);
         _bodyParts = new BodyParts();
         _material = new Carpet();
         _position = new Vector2(125, 800);
@@ -55,10 +55,10 @@ public class Walker
 
     public void TakeActions(Matrix actions)
     {
-        for (int i = 2; i < _joints.Count; i++)
+        for (int i = 0; i < _joints.Count - 2; i++)
         {
             float torque = actions.GetValue(i, 0);
-            _joints[i].SetTorque(torque);
+            _joints[i + 2].SetTorque(torque);
         }
     }
 
@@ -130,7 +130,7 @@ public class Walker
             _bodyParts.Body.GetLinearVelocity().X,
             
             _bodyParts.LeftLegLowerSegment.Collided ? 1 : 0,
-            _bodyParts.RightLegLowerSegment.Collided ? 1 : 0
+            _bodyParts.RightLegLowerSegment.Collided ? 1 : 0,
         };
         
         return Matrix.FromValues(values);
@@ -164,7 +164,7 @@ public class Walker
             new Vector2(_position.X + 20, _position.Y - 20 - 50) // top right
         });
 
-        _bodyParts.Body = Hull.FromSkeleton(_material, bodySkeleton, isFragile: true);
+        _bodyParts.Body = Hull.FromSkeleton(_material, bodySkeleton);
         _bodyParts.Body.SetInverseInertia(0.001f);
 
         _bodyParts.LeftSquare = Hull.FromSkeleton(_material, squareSkeleton);
@@ -188,7 +188,7 @@ public class Walker
         Joint leftJoint = new Joint(_bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment, 2, 3);
         Joint rightJoint = new Joint(_bodyParts.RightLegUpperSegment, _bodyParts.RightLegLowerSegment, 2, 3);
 
-        _joints.AddRange(new []{squareLeftJoint, squareRightJoint, bodyJointLeft, bodyJointRight, leftJoint, rightJoint});
+        _joints.AddRange(new []{bodyJointLeft, bodyJointRight, squareLeftJoint, squareRightJoint, leftJoint, rightJoint});
     }
 
     private void AddAcceleration(Vector2 acceleration)

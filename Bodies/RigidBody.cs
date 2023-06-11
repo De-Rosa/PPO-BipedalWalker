@@ -31,11 +31,10 @@ public class RigidBody : IBody
     private float _angularVelocity;
     private float _angle;
     
-    private readonly bool _sensor;
     private readonly bool _isFloor;
     public bool Collided;
 
-    public RigidBody(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isSensor = false, bool isFloor = false)
+    public RigidBody(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isFloor = false)
     {
         Skeleton = skeleton;
 
@@ -44,7 +43,6 @@ public class RigidBody : IBody
         _associatedBodies = new List<RigidBody>();
         _color = material.Color;
         
-        _sensor = isSensor;
         _isFloor = isFloor;
         Collided = false;
         
@@ -89,7 +87,7 @@ public class RigidBody : IBody
             
             if (SATCollision.IsColliding(vectorA, vectorB, Skeleton.GetCentroid(), iBody.GetCentroid(), out Vector2 normal, out float depth))
             {
-                if (iBody._isFloor && _sensor) Collided = true;
+                if (iBody._isFloor) Collided = true;
                 List<Vector2> contactPoints = ContactPoints.GetContactPoints(vectorA, vectorB, normal);
                 MoveObjects(this, iBody, normal, depth);
                 Impulses.ResolveCollisions(this, iBody, contactPoints, normal);

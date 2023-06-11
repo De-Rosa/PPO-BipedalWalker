@@ -402,15 +402,12 @@ public class Game1 : Game
 
     private void UpdateEnvironment(float deltaTime)
     {
-        for (int i = 0; i < _speed; i++)
-        {
-            Steps += 1;
-            _walker.Update();
+        Steps += 1;
+        _walker.Update();
+        if (Steps != 1) TakeAction();
 
-            if (Steps != 1) TakeAction();
-            StepObjects(deltaTime);
-            CheckState();
-        }
+        StepObjects(deltaTime);
+        CheckState();
     }
 
     private void TakeAction()

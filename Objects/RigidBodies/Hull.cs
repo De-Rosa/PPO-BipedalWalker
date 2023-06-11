@@ -12,19 +12,19 @@ public class Hull : RigidBody, IObject
         Step(rigidBodies, deltaTime);
     }
 
-    private Hull(IMaterial material, Skeleton skeleton, bool isStatic,  bool isSensor, bool isFloor) : base(material, skeleton, isStatic, isSensor, isFloor) {}
+    private Hull(IMaterial material, Skeleton skeleton, bool isStatic,  bool isSensor, bool isFloor) : base(material, skeleton, isStatic, isFloor) {}
 
-    public static Hull FromSkeleton(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isFragile = false, bool isFloor = false)
+    public static Hull FromSkeleton(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isSensor = false, bool isFloor = false)
     {
-        return new Hull(material, skeleton, isStatic, isFragile, isFloor);
+        return new Hull(material, skeleton, isStatic, isSensor, isFloor);
     }
 
-    public static Hull FromPositions(IMaterial material, Vector2[] positions, bool isStatic = false, bool isFragile = false, bool isFloor = false)
+    public static Hull FromPositions(IMaterial material, Vector2[] positions, bool isStatic = false, bool isFloor = false)
     {
         Skeleton skeleton = new Skeleton();
         skeleton.AddVectors(positions);
 
-        return FromSkeleton(material, skeleton, isStatic, isFragile, isFloor);
+        return FromSkeleton(material, skeleton, isStatic, isFloor);
     }
     
     public IBody GetBody()

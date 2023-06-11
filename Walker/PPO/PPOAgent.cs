@@ -12,7 +12,6 @@ public partial class PPOAgent
 {
     private readonly NeuralNetwork _criticNetwork;
     private readonly NeuralNetwork _actorNetworkMean;
-    private readonly NeuralNetwork _actorNetworkStd;
 
     private const int DenseSize = 32;
     private const int Epochs = 5;
@@ -20,7 +19,8 @@ public partial class PPOAgent
     private const float Gamma = 0.99f; // Discount Factor
     private const float Lambda = 0.95f; // Smoothing Factor
     private const float Epsilon = 0.2f; // Clipping Factor
-    
+    private const float StandardDeviation = 0.5f; // Non-learnable, can be learned.
+
     public PPOAgent(int stateSize, int actionSize)
     {
         // Critic neural network transforms a state into a scalar value estimate for use in training the actor
@@ -37,11 +37,6 @@ public partial class PPOAgent
         _actorNetworkMean.AddLayer(new DenseLayer(DenseSize, actionSize));
         _actorNetworkMean.AddLayer(new TanhLayer());
         
-
-        // Actor standard deviation neural network calculates a standard deviation for a given action.
-        // It is used so that when rewards are high, standard deviations fall so that the randomness in the actions becomes limited.
-        _actorNetworkStd = new NeuralNetwork();
-        _actorNetworkStd.AddLayer(new DenseLayer(stateSize, actionSize));
     }
 
     public void Save(string criticFileLocation, string actorFileLocation)
@@ -112,6 +107,7 @@ public partial class PPOAgent
         for (int i = 0; i < BatchSize; i++)
         {
             SampleActions(batch.States[i], out Matrix logProbabilities, out Matrix mean, out Matrix std);
+            
             // Derivative of L Clip
             // Equation 20
             Matrix ratio = Matrix.Exponential(logProbabilities - batch.LogProbabilities[i]);
@@ -157,13 +153,12 @@ public partial class PPOAgent
 
     public Matrix SampleActions(Matrix state, out Matrix logProbabilities, out Matrix mean, out Matrix std)
     {
-        const float stdValue = 0.3f;
-        
         mean = GetMeanOutput(state);
+        
         std = Matrix.FromSize(mean.GetHeight(), 1);
         for (int i = 0; i < mean.GetHeight(); i++)
         {
-            std.SetValue(i, 0, stdValue);
+            std.SetValue(i, 0, StandardDeviation);
         }
 
         Matrix actions = Matrix.SampleNormal(mean, std);
@@ -182,12 +177,6 @@ public partial class PPOAgent
     private Matrix GetMeanOutput(Matrix state)
     {
         return _actorNetworkMean.FeedForward(state);
-    }
-    
-    private Matrix GetStdOutput(Matrix state)
-    {
-        const float std = 0.4f;
-        return _actorNetworkStd.FeedForward(state);
     }
 
     private void GeneralizedAdvantageEstimate(Trajectory trajectory)
