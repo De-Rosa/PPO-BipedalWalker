@@ -170,6 +170,7 @@ public class Game1 : Game
         _input.Update();
         
         float deltaTime = (float) gameTime.ElapsedGameTime.TotalSeconds;
+        
         HandleInputs(deltaTime);
         UpdateEnvironment(deltaTime);
 
@@ -186,7 +187,8 @@ public class Game1 : Game
     private void RenderObjects()
     {
         _spriteBatch.Begin();
-        
+        _walker.Render(_renderer);
+
         foreach (var iObject in _rigidObjects)
         {
             _renderer.RenderRigidObject(iObject);
@@ -222,7 +224,6 @@ public class Game1 : Game
             {
                 joint.Step();
             }
-            
 
             foreach (var rigidObject in _rigidObjects)
             {
@@ -344,6 +345,11 @@ public class Game1 : Game
             EntitySize += 10;
         }
         
+        if (_input.IsKeyPressed(Keys.X))
+        {
+            _walker.GetJoints()[2].SetTorque(-1);
+        }
+        
         if (_input.IsKeyPressed(Keys.Down))
         {
             if (EntitySize >= 20)
@@ -402,12 +408,16 @@ public class Game1 : Game
 
     private void UpdateEnvironment(float deltaTime)
     {
-        Steps += 1;
-        _walker.Update();
-        if (Steps != 1) TakeAction();
+        deltaTime /= _speed;
+        for (int i = 0; i < _speed; i++)
+        {
+            Steps += 1;
+            _walker.Update();
+            if (Steps != 1) TakeAction();
 
-        StepObjects(deltaTime);
-        CheckState();
+            StepObjects(deltaTime);
+            CheckState();
+        }
     }
 
     private void TakeAction()
@@ -435,7 +445,7 @@ public class Game1 : Game
             return;
         }
 
-        if (_walker.Terminal || Steps >= 4000)
+        if (_walker.Terminal)
         {
             _currentReward -= 100;
             TerminalState();

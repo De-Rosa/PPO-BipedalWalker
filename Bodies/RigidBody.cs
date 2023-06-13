@@ -29,6 +29,7 @@ public class RigidBody : IBody
     private Vector2 _linearVelocity;
     
     private float _angularVelocity;
+    private float _torque;
     private float _angle;
     
     private readonly bool _isFloor;
@@ -63,17 +64,14 @@ public class RigidBody : IBody
     protected void Step(List<IObject> objects, float deltaTime)
     {
         StepLinearVelocity(deltaTime);
-
         if (_isStatic) return;
         
         StepAngularVelocity(deltaTime);
-        ResolveCollisions(objects, deltaTime);
+        ResolveCollisions(objects);
     }
 
-    private void ResolveCollisions(List<IObject> objects, float deltaTime)
+    private void ResolveCollisions(List<IObject> objects)
     {
-        Collided = false;
-        
         foreach (var iObject in objects)
         {
             if (iObject == this) continue;
@@ -122,6 +120,11 @@ public class RigidBody : IBody
         _angle = _angularVelocity * deltaTime;
         Skeleton.Rotate(_angle);
     }
+
+    public void StepTorque(float deltaTime)
+    {
+        _angularVelocity += _torque * deltaTime;
+    }
     
     public void AddAcceleration(Vector2 acceleration)
     {
@@ -152,6 +155,11 @@ public class RigidBody : IBody
     public void SetAngularVelocity(float angularVelocity)
     {
         _angularVelocity = angularVelocity;
+    }
+
+    public void SetTorque(float torque)
+    {
+        _torque = torque;
     }
     
     public void AddAngularVelocity(float angularVelocity)

@@ -10,7 +10,7 @@ public class DenseLayer : Layer
 {
     private Matrix _weights;
     private Matrix _biases;
-    
+
     // Adam paper states "Good default settings for the tested machine learning problems are alpha=0.001, beta1=0.9, beta2=0.999 and epsilon=1e−8f"
     private const float Alpha = 0.01f; // step size
     private const float Beta1 = 0.9f; // 1st-order exponential decay
@@ -25,14 +25,14 @@ public class DenseLayer : Layer
     private Matrix _varianceGradientBiases;
 
     private int _iteration;
-    
+
     public DenseLayer(int inputSize, int outputSize)
     {
         _weights = Matrix.FromXavier(outputSize, inputSize);
         _biases = Matrix.FromXavier(outputSize, 1);
 
         _iteration = 0;
-        
+
         _meanGradientWeights = Matrix.FromZeroes(outputSize, inputSize);
         _meanGradientBiases = Matrix.FromZeroes(outputSize, 1);
         _varianceGradientWeights = Matrix.FromZeroes(outputSize, inputSize);
@@ -41,7 +41,9 @@ public class DenseLayer : Layer
         _derivativeLossDerivativeBiases = Matrix.FromZeroes(outputSize, 1);
     }
 
-    private DenseLayer() {}
+    private DenseLayer()
+    {
+    }
 
     public override Layer Clone()
     {
@@ -66,8 +68,8 @@ public class DenseLayer : Layer
         string weights = contents.Substring(weightIndicator, biasIndicator - weightIndicator - 3);
         string biases = contents.Substring(biasIndicator, contents.Length - biasIndicator);
 
-        Matrix.Load(_weights, weights);
-        Matrix.Load(_biases, biases);
+        _weights = Matrix.Load(_weights, weights);
+        _biases = Matrix.Load(_biases, biases);
     }
 
     public string Save()
@@ -76,6 +78,11 @@ public class DenseLayer : Layer
         line += "W " + Matrix.Save(_weights);
         line += " B " + Matrix.Save(_biases);
         return line;
+    }
+
+    public Matrix GetWeights()
+    {
+        return _weights;
     }
 
     public override LayerType GetType()

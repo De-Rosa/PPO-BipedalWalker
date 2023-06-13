@@ -105,6 +105,11 @@ public class Matrix
     
     public static string Save(Matrix matrix)
     {
+        return string.Join(" ", GetRepresentation(matrix));
+    }
+
+    public static float[] GetRepresentation(Matrix matrix)
+    {
         float[] floatValues = new float[matrix._length * matrix._height];
         
         for (int i = 0; i < matrix._height; i++)
@@ -116,7 +121,7 @@ public class Matrix
             }
         }
 
-        return string.Join(" ", floatValues);
+        return floatValues;
     }
     
     private Matrix(float[][] values)
@@ -174,14 +179,16 @@ public class Matrix
         return sum;
     }
     
-    public float Max()
+    public float AbsMax()
     {
-        if (_length != 1) throw new Exception($"Invalid matrix dimensions: trying to get max of a matrix which is not length 1.");
-        
         float max = float.MinValue;
+        
         for (int i = 0; i < _height; i++)
         {
-            if (_values[i][0] > max) max = _values[i][0];
+            for (int j = 0; j < _length; j++)
+            {
+                if (MathF.Abs(_values[i][j]) > max) max = MathF.Abs(_values[i][j]);
+            } 
         }
 
         return max;
@@ -624,6 +631,20 @@ public class Matrix
             float action = actionMatrix._values[i][0];
 
             newMatrix._values[i][0] = NormalDistribution.LogProbabilityDensity(mean, std, action);
+        }
+
+        return newMatrix;
+    }
+    
+    public static Matrix NormalEntropies(Matrix stdMatrix)
+    {
+        Matrix newMatrix = Matrix.FromSize(stdMatrix._height, 1);
+        
+        for (int i = 0; i < newMatrix._height; i++)
+        {
+            float std = stdMatrix._values[i][0];
+
+            newMatrix._values[i][0] = NormalDistribution.Entropy(std);
         }
 
         return newMatrix;

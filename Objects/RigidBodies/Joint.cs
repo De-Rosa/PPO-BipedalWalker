@@ -65,8 +65,7 @@ public class Joint
         if (changeInTorque is > MaximumTorque or < -MaximumTorque) return;
         
         _currentTorque = amount;
-        _bodyA.AddAngularVelocity(-changeInTorque * 2);
-        _bodyB.AddAngularVelocity(changeInTorque * 2);
+        _bodyB.AddAngularVelocity(changeInTorque * 3);
     }
 
     public float GetTorque()

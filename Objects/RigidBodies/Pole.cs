@@ -21,12 +21,12 @@ public class Pole : RigidBody, IObject
         float adjustment = (float) 0.1 * size;
         skeleton.AddVectors(new Vector2[]
         {
-            new Vector2(centroid.X + adjustment, centroid.Y + adjustment * 4), // bottom right
-            new Vector2(centroid.X, centroid.Y + adjustment * 4), // bottom middle
-            new Vector2(centroid.X - adjustment, centroid.Y + adjustment * 4), // bottom left
-            new Vector2(centroid.X - adjustment, centroid.Y - adjustment * 4), // top left
-            new Vector2(centroid.X, centroid.Y - adjustment * 4), // top middle
-            new Vector2(centroid.X + adjustment, centroid.Y - adjustment * 4) // top right
+            new Vector2(centroid.X + adjustment, centroid.Y + adjustment * 3.5f), // bottom right
+            new Vector2(centroid.X, centroid.Y + adjustment * 3.5f), // bottom middle
+            new Vector2(centroid.X - adjustment, centroid.Y + adjustment * 3.5f), // bottom left
+            new Vector2(centroid.X - adjustment, centroid.Y - adjustment * 3.5f), // top left
+            new Vector2(centroid.X, centroid.Y - adjustment * 3.5f), // top middle
+            new Vector2(centroid.X + adjustment, centroid.Y - adjustment * 3.5f) // top right
         });
         
         return new Pole(material, skeleton, isStatic, isFloor);

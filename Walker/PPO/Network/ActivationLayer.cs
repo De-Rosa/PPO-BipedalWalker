@@ -25,21 +25,6 @@ public abstract class ActivationLayer : Layer
     protected abstract float Activation(float value);
 
     protected abstract float DerivativeActivation(float value);
-    
-    public static ActivationLayer ReLU()
-    {
-        return new ReLULayer();
-    }
-    
-    public static ActivationLayer LeakyReLU()
-    {
-        return new LeakyReLULayer();
-    }
-    
-    public static ActivationLayer Tanh()
-    {
-        return new TanhLayer();
-    }
 
     public abstract override Layer Clone();
 }
@@ -64,16 +49,15 @@ public class ReLULayer : ActivationLayer
 
 public class LeakyReLULayer : ActivationLayer
 {
-    private const float Alpha = 0.05f;
+    private const float Alpha = 0.01f;
 
     protected override float Activation(float value)
     {
-        return value < 0 ? Alpha * value : 1;
+        return MathF.Max(Alpha * value, value);
     }
     
     protected override float DerivativeActivation(float value)
     {
-        if (value == 0) return 0;
         return value < 0 ? Alpha : 1;
     }
     
@@ -92,7 +76,7 @@ public class TanhLayer : ActivationLayer
     
     protected override float DerivativeActivation(float value)
     {
-        return (1 - (value * value));
+        return (1 - (MathF.Tanh(value) * MathF.Tanh(value)));
     }
     
     public override Layer Clone()

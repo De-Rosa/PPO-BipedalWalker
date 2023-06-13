@@ -36,4 +36,12 @@ public class NormalDistribution
 
         return - fraction - MathF.Log(std) - lnPi;
     }
+
+    public static float Entropy(float std)
+    {
+        //return MathF.Log(std * MathF.Sqrt(2 * MathF.PI)) + 0.5f;
+        return MathF.Log(MathF.Sqrt(2.0f * MathF.PI * MathF.E) * std);
+        
+    }
+    
 }

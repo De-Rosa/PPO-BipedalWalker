@@ -12,11 +12,11 @@ public class Hull : RigidBody, IObject
         Step(rigidBodies, deltaTime);
     }
 
-    private Hull(IMaterial material, Skeleton skeleton, bool isStatic,  bool isSensor, bool isFloor) : base(material, skeleton, isStatic, isFloor) {}
+    private Hull(IMaterial material, Skeleton skeleton, bool isStatic, bool isFloor) : base(material, skeleton, isStatic, isFloor) {}
 
-    public static Hull FromSkeleton(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isSensor = false, bool isFloor = false)
+    public static Hull FromSkeleton(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isFloor = false)
     {
-        return new Hull(material, skeleton, isStatic, isSensor, isFloor);
+        return new Hull(material, skeleton, isStatic, isFloor);
     }
 
     public static Hull FromPositions(IMaterial material, Vector2[] positions, bool isStatic = false, bool isFloor = false)

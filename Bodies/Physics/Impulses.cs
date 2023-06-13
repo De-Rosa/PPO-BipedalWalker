@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Numerics;
 using Vector2 = Microsoft.Xna.Framework.Vector2;
 
 namespace Physics.Bodies.Physics;
@@ -25,7 +27,7 @@ public class Impulses
         ApplyImpulses(manifold, manifold.Normal, impulse, centreContactA, centreContactB);
         ApplyImpulses(manifold, tangent, impulseF, centreContactAF, centreContactBF);
     }
-    
+
     public static void ResolveJoint(RigidBody bodyA, RigidBody bodyB, List<Vector2> contactPoints, Vector2 normal)
     {
         if (contactPoints.Count == 0) return;
@@ -36,11 +38,10 @@ public class Impulses
         ResolveCollisionAtPoint(manifold, contact, out Vector2 centreContactA, out Vector2 centreContactB, out float impulse);
         ApplyImpulses(manifold, manifold.Normal, impulse, centreContactA, centreContactB);
     }
-
+    
     private static void ResolveCollisionAtPoint(Manifold manifold, Vector2 contactPoint, out Vector2 centreContactA, out Vector2 centreContactB, out float impulse)
     {
         CalculateImpulse(manifold, contactPoint, (1 + manifold.Restitution), manifold.Normal, out centreContactA, out centreContactB, out impulse);
-
     }
     
     private static void ResolveFrictionAtPoint(Manifold manifold, Vector2 contactPoint, out Vector2 centreContactA, out Vector2 centreContactB, out float impulse, out Vector2 tangent)
@@ -48,7 +49,7 @@ public class Impulses
         tangent = new Vector2(-manifold.Normal.Y, manifold.Normal.X);
         CalculateImpulse(manifold, contactPoint, manifold.Friction, tangent, out centreContactA, out centreContactB, out impulse);
     }
-    
+
     public static void ApplyImpulses(Manifold manifold, Vector2 normal, float impulse, Vector2 centreContactA,
         Vector2 centreContactB)
     {

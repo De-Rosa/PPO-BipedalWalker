@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Authentication.ExtendedProtection;
+using Microsoft.Xna.Framework;
+using Physics.Rendering;
+using Vector2 = System.Numerics.Vector2;
 
 namespace Physics.Walker.PPO;
 
@@ -107,11 +111,64 @@ public class NeuralNetwork
         return contents;
     }
 
+    public void Render(Renderer renderer)
+    {
+        Vector2 position = new Vector2(200, 30);
+        Vector2 layerGap = new Vector2(300, 0);
+        Vector2 inputGap = new Vector2(0, 20);
+        
+        for (int i = 0; i < _denseLayers.Count; i++)
+        {
+            position += layerGap;
+            Matrix weights = _denseLayers[i].GetWeights();
+            Matrix cache = _cache[i];
+
+            float weightMax = weights.AbsMax();
+            float cacheMax = cache.AbsMax();
+
+            for (int j = 0; j < weights.GetHeight(); j++)
+            {
+                for (int k = 0; k < weights.GetLength(); k++)
+                {
+                    Vector2 inputPosition = (position - layerGap) + (inputGap * k);
+                    if (i == 0) inputPosition += inputGap * 8;
+                    Vector2 outputPosition = position + (inputGap * j);
+                    if (i == _denseLayers.Count - 1) outputPosition += inputGap * 14;
+
+                    float weightsValue = weights.GetValue(j, k);
+                    float weightsWhiteness = 255 * (Math.Abs(weightsValue) / (weightMax + 1e-10f));
+                    
+                    float cacheValue = cache.GetValue(k, 0);
+                    float cacheWhiteness = 255 * (Math.Abs(cacheValue) / (cacheMax + 1e-10f));
+
+                    int cacheWhitenessInt = Convert.ToInt32(cacheWhiteness);
+                    int weightsWhitenessInt = Convert.ToInt32(weightsWhiteness);
+
+                    if (cacheValue >= 0)
+                    {
+                        renderer.DrawLine(inputPosition, outputPosition, new Color(weightsWhitenessInt, weightsWhitenessInt + (cacheWhitenessInt / 4), weightsWhitenessInt), 1);
+                    }
+                    else
+                    {
+                        renderer.DrawLine(inputPosition, outputPosition, new Color(weightsWhitenessInt + (cacheWhitenessInt / 4), weightsWhitenessInt, weightsWhitenessInt), 1);
+                    }
+                    renderer.DrawSquare(inputPosition, 5, new Color(cacheWhitenessInt, cacheWhitenessInt, cacheWhitenessInt));
+                }
+            }
+        }
+    }
+
     public void Zero()
     {
         foreach (var denseLayer in _denseLayers)
         {
             denseLayer.ZeroGradients();
         }
+    }
+
+    private float Clip(float value, float upper, float lower)
+    {
+        if (value >= upper) return upper;
+        return value <= lower ? lower : value;
     }
 }

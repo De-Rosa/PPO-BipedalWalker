@@ -79,7 +79,7 @@ public sealed class Renderer
         _spriteBatch.Draw(_lineTexture, point, null, color, angle, origin, scale, SpriteEffects.None, 0);
     }
 
-    private void DrawSquare(Vector2 origin, float length, Color color, float thickness = 1f)
+    public void DrawSquare(Vector2 origin, float length, Color color, float thickness = 1f)
     {
         var squareOrigin = new Vector2(origin.X - length / 2, origin.Y - length / 2);
         Vector2[] points = new Vector2[] { squareOrigin, new Vector2(squareOrigin.X + length, squareOrigin.Y), new Vector2(squareOrigin.X + length, squareOrigin.Y + length), new Vector2(squareOrigin.X, squareOrigin.Y + length)};

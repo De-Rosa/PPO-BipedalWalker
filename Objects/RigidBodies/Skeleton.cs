@@ -94,6 +94,18 @@ public class Skeleton
         
         _boundingBox.Update(_vectors);
     }
+    
+    public void Rotate(float angle, Vector2 point)
+    {
+        _previousVectors = new List<Vector2>(_vectors);
+
+        for (int i = 0; i < _vectors.Count; i++)
+        {
+            _vectors[i] = Vector2.Transform(_vectors[i] - point, Matrix.CreateRotationZ(angle)) + point;
+        }
+        
+        _boundingBox.Update(_vectors);
+    }
 }
 
 // Bounding box for skeletons, used for collision optimisation
