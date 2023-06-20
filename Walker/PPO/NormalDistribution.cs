@@ -29,19 +29,18 @@ public class NormalDistribution
     public static float LogProbabilityDensity(float mean, float std, float action)
     {
         float fraction = (action - mean);
-        fraction *= fraction;
+        fraction *= -fraction;
         fraction /= (2f * std * std);
 
         float lnPi = MathF.Log(MathF.Sqrt(2f * MathF.PI));
 
-        return - fraction - MathF.Log(std) - lnPi;
+        return fraction - MathF.Log(std) - lnPi;
     }
 
     public static float Entropy(float std)
     {
         //return MathF.Log(std * MathF.Sqrt(2 * MathF.PI)) + 0.5f;
         return MathF.Log(MathF.Sqrt(2.0f * MathF.PI * MathF.E) * std);
-        
     }
     
 }

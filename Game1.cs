@@ -49,10 +49,12 @@ public class Game1 : Game
     private int Steps = 0;
     private Trajectory _currentTrajectory;
     private float _currentReward;
+    private bool _training = true;
     
     private const string CriticFileLocation = "/Users/square/Projects/Physics/SavedModels/critic.txt";
-    private const string ActorFileLocation = "/Users/square/Projects/Physics/SavedModels/actor.txt";
-    
+    private const string MuFileLocation = "/Users/square/Projects/Physics/SavedModels/muActor.txt";
+    private const string SigmaFileLocation = "/Users/square/Projects/Physics/SavedModels/sigmaActor.txt";
+
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
@@ -95,7 +97,7 @@ public class Game1 : Game
     private void CreateObstacles()
     {
         Vector2[] platformPositions = {
-            new (100, 500), new (100, 450), new (400, 450), new (400, 500)
+            new (-500, 500), new (-500, 450), new (500, 450), new (500, 500)
         };
         
         Vector2[] platform2Positions = {
@@ -187,7 +189,7 @@ public class Game1 : Game
     private void RenderObjects()
     {
         _spriteBatch.Begin();
-        _walker.Render(_renderer);
+        //_walker.Render(_renderer);
 
         foreach (var iObject in _rigidObjects)
         {
@@ -222,7 +224,7 @@ public class Game1 : Game
         {
             foreach (var joint in _walker.GetJoints())
             {
-                joint.Step();
+                joint.Step(deltaTime);
             }
 
             foreach (var rigidObject in _rigidObjects)
@@ -261,6 +263,12 @@ public class Game1 : Game
                 triangle.AddAcceleration(new Vector2(0, 980f));
                 EntityCount += 1;
                 _rigidObjects.Add(triangle);
+            }
+            
+            if (_input.IsKeyPressed(Keys.OemSemicolon)) 
+            {
+                Console.WriteLine(_training ? "No longer training." : "Now training.");
+                _training = !_training;
             }
             
             if (_input.IsKeyPressed(Keys.O)) 
@@ -330,13 +338,13 @@ public class Game1 : Game
         if (_input.IsKeyPressed(Keys.K))
         {
             Console.WriteLine("Saving the current weights.");
-            _walker.Save(CriticFileLocation, ActorFileLocation);
+            _walker.Save(CriticFileLocation, MuFileLocation, SigmaFileLocation);
         }
         
         if (_input.IsKeyPressed(Keys.L))
         {
             Console.WriteLine("Loading the current weights.");
-            _walker.Load(CriticFileLocation, ActorFileLocation);
+            _walker.Load(CriticFileLocation, MuFileLocation, SigmaFileLocation);
             Reset();
         }
 
@@ -423,15 +431,18 @@ public class Game1 : Game
     private void TakeAction()
     {
         Matrix state = _walker.GetState();
-        _currentTrajectory.States.Add(state);
+        if (_training) _currentTrajectory.States.Add(state);
         
-        Matrix actions = _walker.GetActions(state, out Matrix probabilities, out Matrix mean, out Matrix std);
+        Matrix actions = _walker.GetActions(state, out Matrix probabilities, out Matrix mean, out Matrix std, out Matrix logStd);
         _walker.TakeActions(actions);
-        
-        _currentTrajectory.LogProbabilities.Add(probabilities);
-        _currentTrajectory.Means.Add(mean);
-        _currentTrajectory.Stds.Add(std);
-        _currentTrajectory.Actions.Add(actions);
+
+        if (_training)
+        {
+            _currentTrajectory.LogProbabilities.Add(probabilities);
+            _currentTrajectory.Means.Add(mean);
+            _currentTrajectory.Stds.Add(std);
+            _currentTrajectory.Actions.Add(actions);
+        }
     }
 
     private void CheckState()
@@ -440,43 +451,43 @@ public class Game1 : Game
 
         if (_walker.GetPosition().X > 850)
         {
-            _currentReward += 1000;
+            _currentReward += 10;
             TerminalState();
             return;
         }
 
-        if (_walker.Terminal)
+        if (_walker.Terminal || Steps >= 5000)
         {
-            _currentReward -= 100;
+            _currentReward -= 10;
             TerminalState();
             return;
         }
         
-        _currentTrajectory.Rewards.Add(_currentReward);
+        if (_training) _currentTrajectory.Rewards.Add(_currentReward);
     }
 
     private void TerminalState()
     {
-        _currentTrajectory.Rewards.Add(_currentReward);
+        if (_training) _currentTrajectory.Rewards.Add(_currentReward);
         _walker.RepairBody();
         _walker.Terminal = false;
+        Reset();
 
-        StartTraining();
+        if (_training) StartTraining();
     }
 
     // do position set by user?
     private void GetReward()
     {
-        _currentReward = _walker.GetChangeInPosition().X;
+        _currentReward = _walker.GetChangeInPosition().X * 0.1f;
         if (_walker.GetPosition().Y > 850)
         {
-            _currentReward -= 0.01f;
+            _currentReward -= 0.0001f;
         }
     }
     
     private void StartTraining()
     {
-        Reset();
         TrainNetworks();
         
         _currentTrajectory = new Trajectory();

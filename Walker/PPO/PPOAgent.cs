@@ -12,15 +12,17 @@ namespace Physics.Walker.PPO;
 public partial class PPOAgent
 {
     private readonly NeuralNetwork _criticNetwork;
-    private readonly NeuralNetwork _actorNetworkMean;
+    private readonly NeuralNetwork _muActorNetwork;
+    private readonly NeuralNetwork _sigmaActorNetwork;
 
-    private const int DenseSize = 32;
-    private const int Epochs = 10;
-    private const int BatchSize = 256;
+    private const int DenseSize = 64;
+    private const int Epochs = 5;
+    private const int BatchSize = 64;
     private const float Gamma = 0.99f; // Discount Factor
     private const float Lambda = 0.95f; // Smoothing Factor
     private const float Epsilon = 0.2f; // Clipping Factor
-    private const float StandardDeviation = 0.6f; // Non-learnable, can be learned.
+    private const float SigmaMax = 10;
+    private const float SigmaMin = 0.1f;
 
     public PPOAgent(int stateSize, int actionSize)
     {
@@ -30,50 +32,60 @@ public partial class PPOAgent
         _criticNetwork.AddLayer(new LeakyReLULayer());
         _criticNetwork.AddLayer(new DenseLayer(DenseSize, 1));
 
-
-        // Actor mean neural network calculates a mean for a given action.
-        _actorNetworkMean = new NeuralNetwork();
-        _actorNetworkMean.AddLayer(new DenseLayer(stateSize, DenseSize));
-        _actorNetworkMean.AddLayer(new LeakyReLULayer());
-        _actorNetworkMean.AddLayer(new DenseLayer(DenseSize, actionSize));
-        _actorNetworkMean.AddLayer(new TanhLayer());
+        // Actor mean neural network transforms a state into an array of means to use in action sampling.
+        _muActorNetwork = new NeuralNetwork();
+        _muActorNetwork.AddLayer(new DenseLayer(stateSize, DenseSize));
+        _muActorNetwork.AddLayer(new LeakyReLULayer());
+        _muActorNetwork.AddLayer(new DenseLayer(DenseSize, DenseSize));
+        _muActorNetwork.AddLayer(new LeakyReLULayer());
+        _muActorNetwork.AddLayer(new DenseLayer(DenseSize, actionSize));
+        _muActorNetwork.AddLayer(new TanhLayer());
         
+        // Actor sigma neural network transforms a state into an array of standard deviations to use in action sampling.
+        _sigmaActorNetwork = new NeuralNetwork();
+        _sigmaActorNetwork.AddLayer(new DenseLayer(stateSize, actionSize));
     }
 
-    public void Save(string criticFileLocation, string actorFileLocation)
+    public void Save(string criticFileLocation, string muFileLocation, string sigmaFileLocation)
     {
         string[] criticNetwork = _criticNetwork.Save();
-        string[] actorNetwork = _actorNetworkMean.Save();
+        string[] muActorNetwork = _muActorNetwork.Save();
+        string[] sigmaActorNetwork = _sigmaActorNetwork.Save();
 
         File.WriteAllLines(criticFileLocation, criticNetwork);
-        File.WriteAllLines(actorFileLocation, actorNetwork);
+        File.WriteAllLines(muFileLocation, muActorNetwork);
+        File.WriteAllLines(sigmaFileLocation, sigmaActorNetwork);
+
     }
 
-    public void Load(string criticFileLocation, string actorFileLocation)
+    public void Load(string criticFileLocation, string muFileLocation, string sigmaFileLocation)
     {
         string[] criticNetwork = File.ReadAllLines(criticFileLocation);
-        string[] actorNetwork = File.ReadAllLines(actorFileLocation);
-        
-        if (!File.Exists(criticFileLocation) || !File.Exists(actorFileLocation))
+        string[] muNetwork = File.ReadAllLines(muFileLocation);
+        string[] sigmaNetwork = File.ReadAllLines(muFileLocation);
+
+        if (!File.Exists(criticFileLocation) || !File.Exists(muFileLocation) || !File.Exists(sigmaFileLocation))
         {
             Console.WriteLine("Cannot load weights, the weights files do not exist.");
             return;
         }
         
         _criticNetwork.Load(criticNetwork);
-        _actorNetworkMean.Load(actorNetwork);
+        _muActorNetwork.Load(muNetwork);
+        _sigmaActorNetwork.Load(sigmaNetwork);
     }
 
     public void Render(Renderer renderer)
     {
-        _actorNetworkMean.Render(renderer);
+        _muActorNetwork.Render(renderer);
     }
 
     public void Train(Trajectory trajectory)
     {
         CalculateValueEstimates(trajectory);
         MonteCarloReturn(trajectory);
-        GeneralizedAdvantageEstimate(trajectory);
+        //Standardize(trajectory, trajectory.Returns);
+        MonteCarloAdvantages(trajectory);
         
         for (int i = 0; i < Epochs; i++)
         {
@@ -88,7 +100,8 @@ public partial class PPOAgent
 
     private void Train(Batch batch, out float valueLoss, out float lClip)
     {
-        _actorNetworkMean.Zero();
+        _muActorNetwork.Zero();
+        _sigmaActorNetwork.Zero();
         _criticNetwork.Zero();
 
         valueLoss = 0;
@@ -100,34 +113,37 @@ public partial class PPOAgent
         {
             // Derivative of the mean squared error
             // -2(G - V(s))
-            float criticLoss = -2 * (batch.Returns[i] - GetValueEstimate(batch.States[i]));
+            float criticLoss = 2 * (GetValueEstimate(batch.States[i]) - batch.Returns[i]);
             criticLoss /= BatchSize;
             valueLoss += criticLoss;
             
-            SampleActions(batch.States[i], out Matrix logProbabilities, out Matrix mean, out Matrix std);
+            SampleActions(batch.States[i], out Matrix logProbabilities, out Matrix mean, out Matrix std, out Matrix logStd);
             
             // Derivative of L Clip with respect to the policy
             // Equation 20
             Matrix ratio = Matrix.Exponential(logProbabilities - batch.LogProbabilities[i]);
-            Matrix clippedRatio = Matrix.Clip(ratio, 1 + Epsilon, 1 - Epsilon);
+            Matrix clippedRatio = Matrix.Clip(ratio, 1f + Epsilon, 1f - Epsilon);
             Matrix clippedRatioAdvantage = clippedRatio * batch.Advantages[i];
             Matrix ratioAdvantage = ratio * batch.Advantages[i];
 
             Matrix lClipMatrix = Matrix.Min(ratioAdvantage, clippedRatioAdvantage);
-            lClip = lClipMatrix.Mean();
+            float lClipMean = lClipMatrix.Mean();
+            lClipMean /= BatchSize;
+            lClip += lClipMean;
 
-            Matrix partA = Matrix.Compare(ratioAdvantage, clippedRatioAdvantage, 1, 0);
+            Matrix partA = Matrix.Compare(ratioAdvantage, clippedRatioAdvantage, 1f, 0f);
             partA *= batch.Advantages[i];
 
-            Matrix partB = Matrix.CompareNonEquals(clippedRatioAdvantage, ratioAdvantage, 1, 0);
+            Matrix partB = Matrix.CompareNonEquals(clippedRatioAdvantage, ratioAdvantage, 1f, 0f);
             partB *= batch.Advantages[i];
 
-            Matrix partC = Matrix.CompareInRange(ratio, 1 + Epsilon, 1 - Epsilon, 1, 0);
+            Matrix partC = Matrix.CompareInRange(ratio, 1f + Epsilon, 1f - Epsilon, 1f, 0f);
 
             Matrix lClipDerivative = partA + Matrix.HadamardProduct(partB, partC);
-            lClipDerivative *= -1;
+            lClipDerivative *= -1f;
             lClipDerivative = Matrix.HadamardDivision(lClipDerivative, Matrix.Exponential(batch.LogProbabilities[i]));
 
+            // Entropy bonus
             lClipDerivative -= Matrix.NormalEntropies(std);
             
             // Derivative of mean with respect to the policy
@@ -137,18 +153,30 @@ public partial class PPOAgent
             Matrix actionsMinusMean = batch.Actions[i] - mean;
             Matrix variance = Matrix.HadamardProduct(std, std);
 
-            Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  (Matrix.HadamardDivision(actionsMinusMean, variance + 1e-9f)));
+            Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  (Matrix.HadamardDivision(actionsMinusMean, variance)));
             meanDerivative = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
             
+            // Derivative of standard deviation with respect to the policy
+            // https://docs.google.com/document/d/1FZZvz0JMHKWOOVlXnrmeRMoGpyjqa0m6Q0S2qLECDpA
+            Matrix stdCubed = Matrix.HadamardProduct(variance, std);
+            Matrix meanSquared = Matrix.HadamardProduct(mean, mean);
+            Matrix fraction = batch.Actions[i] - meanSquared - variance;
+            fraction = Matrix.HadamardDivision(fraction, stdCubed);
+
+            Matrix transformedDerivative = Matrix.HadamardProduct(fraction, lClipDerivative);
+            Matrix stdDerivative = Matrix.HadamardProduct(transformedDerivative, batch.Stds[i]);
+
+            stdDerivative /= BatchSize;
             meanDerivative /= BatchSize;
             
             _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
-            _actorNetworkMean.FeedBack(meanDerivative);
-
+            _muActorNetwork.FeedBack(meanDerivative);
+            _sigmaActorNetwork.FeedBack(stdDerivative);
         }
         
         _criticNetwork.Optimise();
-        _actorNetworkMean.Optimise();
+        _muActorNetwork.Optimise();
+        _sigmaActorNetwork.Optimise();
     }
 
     // We calculate V(s) which is called the value function. This is the discounted returns if the AI behaves as expected, and does not take
@@ -158,79 +186,61 @@ public partial class PPOAgent
         return _criticNetwork.FeedForward(state).GetValue(0,0);
     }
 
-    public Matrix SampleActions(Matrix state, out Matrix logProbabilities, out Matrix mean, out Matrix std)
+    private Matrix GetLogStandardDeviations(Matrix state)
+    {
+        return _sigmaActorNetwork.FeedForward(state);
+    }
+
+    public Matrix SampleActions(Matrix state, out Matrix logProbabilities, out Matrix mean, out Matrix std, out Matrix logStd)
     {
         mean = GetMeanOutput(state);
-        std = GetStdMatrix(mean.GetHeight());
-
+        logStd = GetLogStandardDeviations(state) - 3.5f;
+        std = Matrix.Exponential(logStd);
+        std = Matrix.Clip(std, SigmaMax, SigmaMin);
+        
         Matrix actions = Matrix.SampleNormal(mean, std);
-        actions = Matrix.Clip(actions, 1, -1);
-
-        logProbabilities = GetLogProbability(mean, std, actions);
+        logProbabilities = GetLogProbabilities(mean, std, actions);
 
         return actions;
     }
 
-    private Matrix GetStdMatrix(int height)
+    private static Matrix GetLogProbabilities(Matrix mean, Matrix std, Matrix actions)
     {
-        Matrix std = Matrix.FromSize(height, 1);
-        
-        for (int i = 0; i < height; i++)
-        {
-            std.SetValue(i, 0, StandardDeviation);
-        }
-
-        return std;
-    }
-
-    private static Matrix GetLogProbability(Matrix mean, Matrix std, Matrix actions)
-    {
-        return Matrix.NormalDensities(mean, std, actions);
+        return Matrix.LogNormalDensities(mean, std, actions);
     }
 
     private Matrix GetMeanOutput(Matrix state)
     {
-        return _actorNetworkMean.FeedForward(state);
+        return _muActorNetwork.FeedForward(state);
     }
 
+    // apparently bootstrapping values does not work practically on single workers
     private void GeneralizedAdvantageEstimate(Trajectory trajectory)
     {
-        float lambdaGamma = Lambda * Gamma;
+        float nextGae = 0;
+        float nextValue = 0;
         
-        for (int i = 0; i < trajectory.States.Count; i++)
+        for (int i = trajectory.States.Count - 1; i >= 0; i--)
         {
-            if (i == trajectory.States.Count - 1) break;
-            float advantage = 0;
-            float decayPower = 0;
-            float nextValueEstimate = trajectory.Values[i];
-            
-            for (int j = i; j < trajectory.States.Count; j++)
-            {
-                if (j == trajectory.States.Count - 1) break;
-                advantage += (float) (CalculateDelta(trajectory, j, ref nextValueEstimate) * Math.Pow(lambdaGamma, decayPower));
-                decayPower += 1;
-            }
-            trajectory.Advantages.Add(advantage);
+            float delta = CalculateDelta(trajectory, i, ref nextValue);
+            float GAE = delta + (Gamma * Lambda * nextGae);
+            trajectory.Advantages.Add(GAE);
+            trajectory.Returns.Add(GAE + trajectory.Values[i]);
         }
+
+        trajectory.Advantages.Reverse();
+        trajectory.Returns.Reverse();
     }
 
-    private float CalculateDelta(Trajectory trajectory, int time, ref float nextValueEstimate)
+    private float CalculateDelta(Trajectory trajectory, int time, ref float nextValue)
     {
-        float previousValueEstimate = nextValueEstimate;
-        nextValueEstimate = trajectory.Values[time + 1];
-        float delta = trajectory.Rewards[time] + (Gamma * nextValueEstimate) - previousValueEstimate;
+        float currentValue = trajectory.Values[time];
+        float delta = trajectory.Rewards[time] + (Gamma * nextValue) - currentValue;
+        nextValue = currentValue;
+
         return delta;
     }
-
-    private void CalculateReturns(Trajectory trajectory)
-    {
-        for (int i = 0; i < trajectory.Advantages.Count; i++)
-        {
-            float value = trajectory.Advantages[i] + trajectory.Values[i];
-            trajectory.Returns.Add(value);
-        }
-    }
-
+    
     private void CalculateValueEstimates(Trajectory trajectory)
     {
         for (int i = 0; i < trajectory.States.Count; i++)
@@ -242,41 +252,38 @@ public partial class PPOAgent
 
     // https://datascience.stackexchange.com/questions/20098/why-do-we-normalize-the-discounted-rewards-when-doing-policy-gradient-reinforcem
     // https://stackoverflow.com/questions/3141692/standard-deviation-of-generic-list
-    private void StandardizeAdvantages(Trajectory trajectory)
+    private void Standardize(Trajectory trajectory, List<float> list)
     {
-        float mean = trajectory.Advantages.Average();
-        float std = (float) Math.Sqrt(trajectory.Advantages.Sum(value => Math.Pow(value - mean, 2)) / (trajectory.Advantages.Count - 1));
+        float mean = list.Average();
+        float std = (float) Math.Sqrt(list.Sum(value => Math.Pow(value - mean, 2)) / (list.Count));
         
-        for (int i = 0; i < trajectory.Advantages.Count; i++)
+        for (int i = 0; i < list.Count; i++)
         {
-            trajectory.Advantages[i] -= mean;
-            trajectory.Advantages[i] /= std;
+            list[i] -= mean;
+            list[i] /= std;
         }
     }
 
     private void MonteCarloReturn(Trajectory trajectory)
     {
-        for (int i = 0; i < trajectory.States.Count; i++)
+        float discountedReturns = 0;
+        for (int i = trajectory.States.Count - 1; i >= 0; i--)
         {
-            float discountedReturns = 0;
-            int decayPower = 0;
-            for (int j = i; j < trajectory.Rewards.Count; j++)
-            {
-                discountedReturns += (float) (trajectory.Rewards[j] * Math.Pow(Gamma, decayPower));
-                decayPower += 1;
-            }
+            discountedReturns = trajectory.Rewards[i] + (discountedReturns * Gamma);
             trajectory.Returns.Add(discountedReturns);
         }
+
+        trajectory.Returns.Reverse();
     }
 
-    private void CalculateAdvantages(Trajectory trajectory)
+    private void MonteCarloAdvantages(Trajectory trajectory)
     {
-        for (int i = 0; i < trajectory.Returns.Count; i++)
+        for (int i = 0; i < trajectory.States.Count; i++)
         {
             trajectory.Advantages.Add(trajectory.Returns[i] - trajectory.Values[i]);
         }
     }
-
+    
     private List<Batch> CreateBatches(Trajectory trajectory)
     {
         List<Batch> batches = new List<Batch>();

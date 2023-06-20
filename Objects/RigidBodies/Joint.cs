@@ -14,7 +14,6 @@ public class Joint
     private readonly int _indexA;
     private readonly int _indexB;
 
-    private const float MaximumTorque = 15;
     private float _currentTorque;
 
     public Joint(RigidBody bodyA, RigidBody bodyB, int pointIndexA, int pointIndexB)
@@ -27,7 +26,7 @@ public class Joint
         _currentTorque = 0;
     }
     
-    public void Step()
+    public void Step(float deltaTime)
     {
         Vector2 vectorAB = GetPointB() - GetPointA();
         if (vectorAB == Vector2.Zero) return;
@@ -35,7 +34,8 @@ public class Joint
         vectorAB.Normalize();
         _bodyA.GetSkeleton().Move(vectorAB * depth / 2);
         _bodyB.GetSkeleton().Move(-vectorAB * depth / 2);
-
+        
+        
         Impulses.ResolveJoint(_bodyB, _bodyA, new List<Vector2>(){GetPointA(), GetPointB()}, vectorAB);
     }
 
@@ -62,10 +62,8 @@ public class Joint
     public void SetTorque(float amount)
     {
         float changeInTorque = amount - _currentTorque;
-        if (changeInTorque is > MaximumTorque or < -MaximumTorque) return;
-        
         _currentTorque = amount;
-        _bodyB.AddAngularVelocity(changeInTorque * 3);
+        _bodyB.AddAngularVelocity(changeInTorque * 5);
     }
 
     public float GetTorque()

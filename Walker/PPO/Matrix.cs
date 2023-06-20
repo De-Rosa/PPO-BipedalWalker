@@ -620,7 +620,7 @@ public class Matrix
         return newMatrix;
     }
 
-    public static Matrix NormalDensities(Matrix meanMatrix, Matrix stdMatrix, Matrix actionMatrix)
+    public static Matrix LogNormalDensities(Matrix meanMatrix, Matrix stdMatrix, Matrix actionMatrix)
     {
         Matrix newMatrix = Matrix.FromSize(meanMatrix._height, 1);
         

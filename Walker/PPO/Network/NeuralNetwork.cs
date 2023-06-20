@@ -113,9 +113,9 @@ public class NeuralNetwork
 
     public void Render(Renderer renderer)
     {
-        Vector2 position = new Vector2(200, 30);
+        Vector2 position = new Vector2(50, 30);
         Vector2 layerGap = new Vector2(300, 0);
-        Vector2 inputGap = new Vector2(0, 20);
+        Vector2 inputGap = new Vector2(0, 12);
         
         for (int i = 0; i < _denseLayers.Count; i++)
         {
@@ -131,9 +131,9 @@ public class NeuralNetwork
                 for (int k = 0; k < weights.GetLength(); k++)
                 {
                     Vector2 inputPosition = (position - layerGap) + (inputGap * k);
-                    if (i == 0) inputPosition += inputGap * 8;
+                    if (i == 0) inputPosition += inputGap * 24;
                     Vector2 outputPosition = position + (inputGap * j);
-                    if (i == _denseLayers.Count - 1) outputPosition += inputGap * 14;
+                    if (i == _denseLayers.Count - 1) outputPosition += inputGap * 30;
 
                     float weightsValue = weights.GetValue(j, k);
                     float weightsWhiteness = 255 * (Math.Abs(weightsValue) / (weightMax + 1e-10f));

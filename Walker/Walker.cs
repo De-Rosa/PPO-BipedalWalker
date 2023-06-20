@@ -26,9 +26,9 @@ public class Walker
     public Walker()
     {
         _joints = new List<Joint>();
-        _brain = new PPO.PPOAgent(15, 4);
+        _brain = new PPO.PPOAgent(12, 4);
         _bodyParts = new BodyParts();
-        _material = new Wood();
+        _material = new Carpet();
         _position = new Vector2(125, 800);
         _previousPosition = _position;
         Terminal = false;
@@ -45,21 +45,23 @@ public class Walker
     public void Update()
     {
         _previousPosition = _position;
-        _position = _bodyParts.Body.GetCentroid();
+        _position = _joints[0].GetPointA();
         if (_bodyParts.Body.Collided) Terminal = true;
     }
 
-    public Matrix GetActions(Matrix state, out Matrix probabilities, out Matrix mean, out Matrix std)
+    public Matrix GetActions(Matrix state, out Matrix probabilities, out Matrix mean, out Matrix std, out Matrix logStd)
     {
-        return _brain.SampleActions(state, out probabilities, out mean, out std);
+        Matrix actions = _brain.SampleActions(state, out probabilities, out mean, out std, out logStd);
+        actions = Matrix.Clip(actions, 1, -1);
+        return actions;
     }
 
     public void TakeActions(Matrix actions)
     {
-        for (int i = 0; i < _joints.Count - 2; i++)
+        for (int i = 0; i < _joints.Count; i++)
         {
             float torque = actions.GetValue(i, 0);
-            _joints[i + 2].SetTorque(torque);
+            _joints[i].SetTorque(torque);
         }
     }
 
@@ -68,14 +70,14 @@ public class Walker
         _brain.Train(trajectory);
     }
 
-    public void Save(string criticFileLocation, string actorFileLocation)
+    public void Save(string criticFileLocation, string muFileLocation, string sigmaFileLocation)
     {
-        _brain.Save(criticFileLocation, actorFileLocation);
+        _brain.Save(criticFileLocation, muFileLocation, sigmaFileLocation);
     }
 
-    public void Load(string criticFileLocation, string actorFileLocation)
+    public void Load(string criticFileLocation, string muFileLocation, string sigmaFileLocation)
     {
-        _brain.Load(criticFileLocation, actorFileLocation);
+        _brain.Load(criticFileLocation, muFileLocation, sigmaFileLocation);
     }
 
     public void Render(Renderer renderer)
@@ -125,19 +127,26 @@ public class Walker
             _bodyParts.LeftLegUpperSegment.GetAngularVelocity() * 10,
             _bodyParts.RightLegLowerSegment.GetAngularVelocity() * 10,
             _bodyParts.RightLegUpperSegment.GetAngularVelocity() * 10, 
-            _bodyParts.Body.GetAngularVelocity() * 10,
-                
+
             -_bodyParts.LeftLegLowerSegment.GetLinearVelocity().Y,
             -_bodyParts.LeftLegUpperSegment.GetLinearVelocity().Y,
             -_bodyParts.RightLegLowerSegment.GetLinearVelocity().Y,
             -_bodyParts.RightLegUpperSegment.GetLinearVelocity().Y, 
-            -_bodyParts.Body.GetLinearVelocity().Y,
                 
             _bodyParts.LeftLegLowerSegment.GetLinearVelocity().X,
             _bodyParts.LeftLegUpperSegment.GetLinearVelocity().X,
             _bodyParts.RightLegLowerSegment.GetLinearVelocity().X,
-            _bodyParts.RightLegUpperSegment.GetLinearVelocity().X, 
-            _bodyParts.Body.GetLinearVelocity().X
+            _bodyParts.RightLegUpperSegment.GetLinearVelocity().X
+            
+            /*(_joints[0].GetPointA().X - 125) / 50,
+            (_joints[1].GetPointA().X - 125) / 50,
+            (_joints[2].GetPointA().X - 125) / 50,
+            (_joints[3].GetPointA().X - 125) / 50,
+            
+            (_joints[0].GetPointA().Y - 800) / 50,
+            (_joints[1].GetPointA().Y - 800) / 50,
+            (_joints[2].GetPointA().Y - 800) / 50,
+            (_joints[3].GetPointA().Y - 800) / 50,*/
         };
         
         // Normalization
@@ -162,22 +171,6 @@ public class Walker
 
     private void CreateBodies(List<IObject> rigidBodies)
     {
-        Vector2[] squareVectors = new Vector2[]
-        {
-            new Vector2(_position.X + 7.5f, _position.Y + 7.5f - 7.5f), 
-            new Vector2(_position.X, _position.Y + 7.5f - 7.5f),
-            new Vector2(_position.X - 7.5f, _position.Y + 7.5f - 7.5f),
-            new Vector2(_position.X - 7.5f, _position.Y - 7.5f - 7.5f),
-            new Vector2(_position.X, _position.Y - 7.5f - 7.5f),
-            new Vector2(_position.X + 7.5f, _position.Y - 7.5f - 7.5f)
-        };
-        
-        Skeleton squareSkeleton = new Skeleton();
-        squareSkeleton.AddVectors(squareVectors);
-
-        Skeleton squareSkeleton2 = new Skeleton();
-        squareSkeleton2.AddVectors(squareVectors);
-        
         Skeleton bodySkeleton = new Skeleton();
         bodySkeleton.AddVectors(new Vector2[]
         {
@@ -189,30 +182,25 @@ public class Walker
         });
 
         _bodyParts.Body = Hull.FromSkeleton(_material, bodySkeleton);
-        _bodyParts.Body.SetInverseInertia(0.001f);
+        _bodyParts.Body.SetInverseInertia(0.0005f);
 
-        _bodyParts.LeftSquare = Hull.FromSkeleton(_material, squareSkeleton);
-        _bodyParts.RightSquare = Hull.FromSkeleton(_material, squareSkeleton2);
+        _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
+        _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50f), 75);
 
-        _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 15), 75);
-        _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 41.25f), 75, isFloor: true);
+        _bodyParts.RightLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
+        _bodyParts.RightLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50f), 75);
 
-        _bodyParts.RightLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 15), 75);
-        _bodyParts.RightLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 41.25f), 75, isFloor: true);
-
-        rigidBodies.AddRange(new IObject[] {_bodyParts.LeftSquare, _bodyParts.RightSquare, _bodyParts.LeftLegLowerSegment, _bodyParts.LeftLegUpperSegment, _bodyParts.Body, _bodyParts.RightLegLowerSegment, _bodyParts.RightLegUpperSegment});
+        rigidBodies.AddRange(new IObject[] {_bodyParts.LeftLegLowerSegment, _bodyParts.LeftLegUpperSegment, _bodyParts.Body, _bodyParts.RightLegLowerSegment, _bodyParts.RightLegUpperSegment});
     }
 
     private void CreateJoints()
     {
-        Joint squareLeftJoint = new Joint(_bodyParts.Body, _bodyParts.LeftSquare, 1, 4);
-        Joint squareRightJoint = new Joint(_bodyParts.Body, _bodyParts.RightSquare, 1, 4);
-        Joint bodyJointLeft = new Joint(_bodyParts.LeftSquare, _bodyParts.LeftLegUpperSegment, 1, 4);
-        Joint bodyJointRight = new Joint(_bodyParts.RightSquare, _bodyParts.RightLegUpperSegment, 1, 4);
+        Joint bodyJointLeft = new Joint(_bodyParts.Body, _bodyParts.LeftLegUpperSegment, 1, 4);
+        Joint bodyJointRight = new Joint(_bodyParts.Body, _bodyParts.RightLegUpperSegment, 1, 4);
         Joint leftJoint = new Joint(_bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment, 2, 3);
         Joint rightJoint = new Joint(_bodyParts.RightLegUpperSegment, _bodyParts.RightLegLowerSegment, 2, 3);
 
-        _joints.AddRange(new []{squareLeftJoint, squareRightJoint, bodyJointLeft, bodyJointRight,  leftJoint, rightJoint});
+        _joints.AddRange(new []{bodyJointLeft, bodyJointRight,  leftJoint, rightJoint});
     }
 
     private void AddAcceleration(Vector2 acceleration)
@@ -221,20 +209,16 @@ public class Walker
         _bodyParts.LeftLegLowerSegment.AddAcceleration(acceleration);
         _bodyParts.RightLegUpperSegment.AddAcceleration(acceleration);
         _bodyParts.RightLegLowerSegment.AddAcceleration(acceleration);
-        _bodyParts.LeftSquare.AddAcceleration(acceleration);
-        _bodyParts.RightSquare.AddAcceleration(acceleration);
         _bodyParts.Body.AddAcceleration(acceleration);
     }
 
     private void AddAssociatedBodies()
     {
-        _bodyParts.LeftLegUpperSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.RightSquare, _bodyParts.LeftSquare, _bodyParts.RightLegUpperSegment, _bodyParts.RightLegLowerSegment});
-        _bodyParts.LeftLegLowerSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.RightLegUpperSegment, _bodyParts.RightLegLowerSegment});
-        _bodyParts.RightLegUpperSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.RightSquare, _bodyParts.LeftSquare, _bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment});
-        _bodyParts.RightLegLowerSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment});
-        _bodyParts.LeftSquare.AddAssociatedBodies(new RigidBody[] {_bodyParts.Body, _bodyParts.RightLegUpperSegment, _bodyParts.RightLegLowerSegment, _bodyParts.RightSquare});
-        _bodyParts.RightSquare.AddAssociatedBodies(new RigidBody[] {_bodyParts.Body, _bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment, _bodyParts.LeftSquare});
-        _bodyParts.Body.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftSquare, _bodyParts.RightSquare});
+        _bodyParts.LeftLegUpperSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.RightLegUpperSegment, _bodyParts.RightLegLowerSegment, _bodyParts.Body});
+        _bodyParts.LeftLegLowerSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.RightLegUpperSegment, _bodyParts.RightLegLowerSegment, _bodyParts.Body});
+        _bodyParts.RightLegUpperSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment, _bodyParts.Body});
+        _bodyParts.RightLegLowerSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment, _bodyParts.Body});
+        _bodyParts.Body.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.RightLegUpperSegment});
     }
 
     public void Reset()
@@ -261,6 +245,4 @@ public class BodyParts
     public Pole RightLegLowerSegment;
     
     public Hull Body;
-    public Hull LeftSquare;
-    public Hull RightSquare;
 }
