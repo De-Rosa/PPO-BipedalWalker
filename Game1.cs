@@ -52,8 +52,7 @@ public class Game1 : Game
     private bool _training = true;
     
     private const string CriticFileLocation = "/Users/square/Projects/Physics/SavedModels/critic.txt";
-    private const string MuFileLocation = "/Users/square/Projects/Physics/SavedModels/muActor.txt";
-    private const string SigmaFileLocation = "/Users/square/Projects/Physics/SavedModels/sigmaActor.txt";
+    private const string ActorFileLocation = "/Users/square/Projects/Physics/SavedModels/actor.txt";
 
     public Game1()
     {
@@ -338,13 +337,13 @@ public class Game1 : Game
         if (_input.IsKeyPressed(Keys.K))
         {
             Console.WriteLine("Saving the current weights.");
-            _walker.Save(CriticFileLocation, MuFileLocation, SigmaFileLocation);
+            _walker.Save(CriticFileLocation, ActorFileLocation);
         }
         
         if (_input.IsKeyPressed(Keys.L))
         {
             Console.WriteLine("Loading the current weights.");
-            _walker.Load(CriticFileLocation, MuFileLocation, SigmaFileLocation);
+            _walker.Load(CriticFileLocation, ActorFileLocation);
             Reset();
         }
 
@@ -433,7 +432,7 @@ public class Game1 : Game
         Matrix state = _walker.GetState();
         if (_training) _currentTrajectory.States.Add(state);
         
-        Matrix actions = _walker.GetActions(state, out Matrix probabilities, out Matrix mean, out Matrix std, out Matrix logStd);
+        Matrix actions = _walker.GetActions(state, out Matrix probabilities, out Matrix mean, out Matrix std);
         _walker.TakeActions(actions);
 
         if (_training)

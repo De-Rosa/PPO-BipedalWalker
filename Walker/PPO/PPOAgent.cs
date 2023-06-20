@@ -12,8 +12,7 @@ namespace Physics.Walker.PPO;
 public partial class PPOAgent
 {
     private readonly NeuralNetwork _criticNetwork;
-    private readonly NeuralNetwork _muActorNetwork;
-    private readonly NeuralNetwork _sigmaActorNetwork;
+    private readonly NeuralNetwork _actorNetwork;
 
     private const int DenseSize = 64;
     private const int Epochs = 5;
@@ -21,8 +20,7 @@ public partial class PPOAgent
     private const float Gamma = 0.99f; // Discount Factor
     private const float Lambda = 0.95f; // Smoothing Factor
     private const float Epsilon = 0.2f; // Clipping Factor
-    private const float SigmaMax = 10;
-    private const float SigmaMin = 0.1f;
+    private const float LogStandardDeviation = -0.5f;
 
     public PPOAgent(int stateSize, int actionSize)
     {
@@ -33,51 +31,43 @@ public partial class PPOAgent
         _criticNetwork.AddLayer(new DenseLayer(DenseSize, 1));
 
         // Actor mean neural network transforms a state into an array of means to use in action sampling.
-        _muActorNetwork = new NeuralNetwork();
-        _muActorNetwork.AddLayer(new DenseLayer(stateSize, DenseSize));
-        _muActorNetwork.AddLayer(new LeakyReLULayer());
-        _muActorNetwork.AddLayer(new DenseLayer(DenseSize, DenseSize));
-        _muActorNetwork.AddLayer(new LeakyReLULayer());
-        _muActorNetwork.AddLayer(new DenseLayer(DenseSize, actionSize));
-        _muActorNetwork.AddLayer(new TanhLayer());
-        
-        // Actor sigma neural network transforms a state into an array of standard deviations to use in action sampling.
-        _sigmaActorNetwork = new NeuralNetwork();
-        _sigmaActorNetwork.AddLayer(new DenseLayer(stateSize, actionSize));
+        _actorNetwork = new NeuralNetwork();
+        _actorNetwork.AddLayer(new DenseLayer(stateSize, DenseSize));
+        _actorNetwork.AddLayer(new LeakyReLULayer());
+        _actorNetwork.AddLayer(new DenseLayer(DenseSize, DenseSize));
+        _actorNetwork.AddLayer(new LeakyReLULayer());
+        _actorNetwork.AddLayer(new DenseLayer(DenseSize, actionSize));
+        _actorNetwork.AddLayer(new TanhLayer());
     }
 
-    public void Save(string criticFileLocation, string muFileLocation, string sigmaFileLocation)
+    public void Save(string criticFileLocation, string muFileLocation)
     {
         string[] criticNetwork = _criticNetwork.Save();
-        string[] muActorNetwork = _muActorNetwork.Save();
-        string[] sigmaActorNetwork = _sigmaActorNetwork.Save();
+        string[] muActorNetwork = _actorNetwork.Save();
 
         File.WriteAllLines(criticFileLocation, criticNetwork);
         File.WriteAllLines(muFileLocation, muActorNetwork);
-        File.WriteAllLines(sigmaFileLocation, sigmaActorNetwork);
 
     }
 
-    public void Load(string criticFileLocation, string muFileLocation, string sigmaFileLocation)
+    public void Load(string criticFileLocation, string muFileLocation)
     {
         string[] criticNetwork = File.ReadAllLines(criticFileLocation);
         string[] muNetwork = File.ReadAllLines(muFileLocation);
-        string[] sigmaNetwork = File.ReadAllLines(muFileLocation);
 
-        if (!File.Exists(criticFileLocation) || !File.Exists(muFileLocation) || !File.Exists(sigmaFileLocation))
+        if (!File.Exists(criticFileLocation) || !File.Exists(muFileLocation))
         {
             Console.WriteLine("Cannot load weights, the weights files do not exist.");
             return;
         }
         
         _criticNetwork.Load(criticNetwork);
-        _muActorNetwork.Load(muNetwork);
-        _sigmaActorNetwork.Load(sigmaNetwork);
+        _actorNetwork.Load(muNetwork);
     }
 
     public void Render(Renderer renderer)
     {
-        _muActorNetwork.Render(renderer);
+        _actorNetwork.Render(renderer);
     }
 
     public void Train(Trajectory trajectory)
@@ -100,8 +90,7 @@ public partial class PPOAgent
 
     private void Train(Batch batch, out float valueLoss, out float lClip)
     {
-        _muActorNetwork.Zero();
-        _sigmaActorNetwork.Zero();
+        _actorNetwork.Zero();
         _criticNetwork.Zero();
 
         valueLoss = 0;
@@ -117,7 +106,7 @@ public partial class PPOAgent
             criticLoss /= BatchSize;
             valueLoss += criticLoss;
             
-            SampleActions(batch.States[i], out Matrix logProbabilities, out Matrix mean, out Matrix std, out Matrix logStd);
+            SampleActions(batch.States[i], out Matrix logProbabilities, out Matrix mean, out Matrix std);
             
             // Derivative of L Clip with respect to the policy
             // Equation 20
@@ -156,27 +145,14 @@ public partial class PPOAgent
             Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  (Matrix.HadamardDivision(actionsMinusMean, variance)));
             meanDerivative = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
             
-            // Derivative of standard deviation with respect to the policy
-            // https://docs.google.com/document/d/1FZZvz0JMHKWOOVlXnrmeRMoGpyjqa0m6Q0S2qLECDpA
-            Matrix stdCubed = Matrix.HadamardProduct(variance, std);
-            Matrix meanSquared = Matrix.HadamardProduct(mean, mean);
-            Matrix fraction = batch.Actions[i] - meanSquared - variance;
-            fraction = Matrix.HadamardDivision(fraction, stdCubed);
-
-            Matrix transformedDerivative = Matrix.HadamardProduct(fraction, lClipDerivative);
-            Matrix stdDerivative = Matrix.HadamardProduct(transformedDerivative, batch.Stds[i]);
-
-            stdDerivative /= BatchSize;
             meanDerivative /= BatchSize;
             
             _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
-            _muActorNetwork.FeedBack(meanDerivative);
-            _sigmaActorNetwork.FeedBack(stdDerivative);
+            _actorNetwork.FeedBack(meanDerivative);
         }
         
         _criticNetwork.Optimise();
-        _muActorNetwork.Optimise();
-        _sigmaActorNetwork.Optimise();
+        _actorNetwork.Optimise();
     }
 
     // We calculate V(s) which is called the value function. This is the discounted returns if the AI behaves as expected, and does not take
@@ -186,17 +162,23 @@ public partial class PPOAgent
         return _criticNetwork.FeedForward(state).GetValue(0,0);
     }
 
-    private Matrix GetLogStandardDeviations(Matrix state)
+    private Matrix GetStandardDeviations(int height)
     {
-        return _sigmaActorNetwork.FeedForward(state);
+        Matrix std = Matrix.FromSize(height, 1);
+        float stdValue = MathF.Exp(LogStandardDeviation);
+        
+        for (int i = 0; i < height; i++)
+        {
+            std.SetValue(i, 0, stdValue);
+        }
+
+        return std;
     }
 
-    public Matrix SampleActions(Matrix state, out Matrix logProbabilities, out Matrix mean, out Matrix std, out Matrix logStd)
+    public Matrix SampleActions(Matrix state, out Matrix logProbabilities, out Matrix mean, out Matrix std)
     {
         mean = GetMeanOutput(state);
-        logStd = GetLogStandardDeviations(state) - 3.5f;
-        std = Matrix.Exponential(logStd);
-        std = Matrix.Clip(std, SigmaMax, SigmaMin);
+        std = GetStandardDeviations(mean.GetHeight());
         
         Matrix actions = Matrix.SampleNormal(mean, std);
         logProbabilities = GetLogProbabilities(mean, std, actions);
@@ -211,7 +193,7 @@ public partial class PPOAgent
 
     private Matrix GetMeanOutput(Matrix state)
     {
-        return _muActorNetwork.FeedForward(state);
+        return _actorNetwork.FeedForward(state);
     }
 
     // apparently bootstrapping values does not work practically on single workers

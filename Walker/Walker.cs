@@ -49,9 +49,9 @@ public class Walker
         if (_bodyParts.Body.Collided) Terminal = true;
     }
 
-    public Matrix GetActions(Matrix state, out Matrix probabilities, out Matrix mean, out Matrix std, out Matrix logStd)
+    public Matrix GetActions(Matrix state, out Matrix probabilities, out Matrix mean, out Matrix std)
     {
-        Matrix actions = _brain.SampleActions(state, out probabilities, out mean, out std, out logStd);
+        Matrix actions = _brain.SampleActions(state, out probabilities, out mean, out std);
         actions = Matrix.Clip(actions, 1, -1);
         return actions;
     }
@@ -70,14 +70,14 @@ public class Walker
         _brain.Train(trajectory);
     }
 
-    public void Save(string criticFileLocation, string muFileLocation, string sigmaFileLocation)
+    public void Save(string criticFileLocation, string muFileLocation)
     {
-        _brain.Save(criticFileLocation, muFileLocation, sigmaFileLocation);
+        _brain.Save(criticFileLocation, muFileLocation);
     }
 
-    public void Load(string criticFileLocation, string muFileLocation, string sigmaFileLocation)
+    public void Load(string criticFileLocation, string muFileLocation)
     {
-        _brain.Load(criticFileLocation, muFileLocation, sigmaFileLocation);
+        _brain.Load(criticFileLocation, muFileLocation);
     }
 
     public void Render(Renderer renderer)
