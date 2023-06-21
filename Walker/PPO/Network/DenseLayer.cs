@@ -11,8 +11,9 @@ public class DenseLayer : Layer
     private Matrix _weights;
     private Matrix _biases;
 
+    // Adam hyper-parameters
     // Adam paper states "Good default settings for the tested machine learning problems are alpha=0.001, beta1=0.9, beta2=0.999 and epsilon=1e−8f"
-    private const float Alpha = 0.001f; // step size
+    private const float Alpha = 0.005f; // step size
     private const float Beta1 = 0.9f; // 1st-order exponential decay
     private const float Beta2 = 0.999f; // 2nd-order exponential decay
     private const float Epsilon = 1e-8f; // prevent zero division
@@ -25,13 +26,15 @@ public class DenseLayer : Layer
     private Matrix _varianceGradientBiases;
 
     private int _iteration;
+    private int _batchSize;
 
-    public DenseLayer(int inputSize, int outputSize)
+    public DenseLayer(int inputSize, int outputSize, int batchSize)
     {
         _weights = Matrix.FromXavier(outputSize, inputSize);
-        _biases = Matrix.FromXavier(outputSize, 1);
+        _biases = Matrix.FromZeroes(outputSize, 1);
 
         _iteration = 0;
+        _batchSize = batchSize;
 
         _meanGradientWeights = Matrix.FromZeroes(outputSize, inputSize);
         _meanGradientBiases = Matrix.FromZeroes(outputSize, 1);
@@ -100,8 +103,9 @@ public class DenseLayer : Layer
     // adjust weights in the direction of the gradient
     public override Matrix FeedBack(Matrix matrix, Matrix gradient)
     {
-        _derivativeLossDerivativeBiases += (Matrix.Flatten(gradient));
-        _derivativeLossDerivativeWeights += gradient * Matrix.Transpose(matrix);
+        float ratio = 1f / _batchSize;
+        _derivativeLossDerivativeBiases += (Matrix.Flatten(gradient)) * ratio;
+        _derivativeLossDerivativeWeights += gradient * Matrix.Transpose(matrix) * ratio;
         return Matrix.Transpose(_weights) * gradient;
     }
 

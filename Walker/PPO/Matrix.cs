@@ -630,21 +630,7 @@ public class Matrix
             float std = stdMatrix._values[i][0];
             float action = actionMatrix._values[i][0];
 
-            newMatrix._values[i][0] = NormalDistribution.LogProbabilityDensity(mean, std, action);
-        }
-
-        return newMatrix;
-    }
-    
-    public static Matrix NormalEntropies(Matrix stdMatrix)
-    {
-        Matrix newMatrix = Matrix.FromSize(stdMatrix._height, 1);
-        
-        for (int i = 0; i < newMatrix._height; i++)
-        {
-            float std = stdMatrix._values[i][0];
-
-            newMatrix._values[i][0] = NormalDistribution.Entropy(std);
+            newMatrix._values[i][0] = MathF.Log(NormalDistribution.ProbabilityDensity(mean, std, action));
         }
 
         return newMatrix;

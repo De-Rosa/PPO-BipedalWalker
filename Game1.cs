@@ -30,44 +30,30 @@ public class Game1 : Game
     private readonly List<IObject> _rigidObjects;
     private readonly List<IObject> _softObjects;
     private readonly List<Water> _water;
-    private Walker.Walker _walker;
+    private readonly Environment _environment;
 
     private IMaterial _squareMaterial = new Wood();
-    private readonly IMaterial _obstacleMaterial = new Metal();
-    private const bool RoughFloor = false;
 
     private const int Iterations = 50;
     private int _speed = 1;
 
-    private int EntityCount = 0;
-    private int EntitySize = 50;
+    private int _entityCount = 0;
+    private int _entitySize = 50;
     private const int EntityCap = 200;
     
     private IObject _dragging;
     private Vector2[] _stringLine;
-
-    private int Steps = 0;
-    private Trajectory _currentTrajectory;
-    private float _currentReward;
-    private bool _training = true;
-    
-    private const string CriticFileLocation = "/Users/square/Projects/Physics/SavedModels/critic.txt";
-    private const string ActorFileLocation = "/Users/square/Projects/Physics/SavedModels/actor.txt";
 
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
         _input = new InputManager();
         _rigidObjects = new List<IObject>();
-        _currentTrajectory = new Trajectory();
         _softObjects = new List<IObject>();
         _water = new List<Water>();
         _stringLine = new Vector2[2];
         _dragging = null;
-        _walker = new Walker.Walker();
-        _currentReward = 0;
-        
-        _walker.CreateCreature(_rigidObjects);
+        _environment = new Environment(_rigidObjects);
         
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
@@ -77,8 +63,6 @@ public class Game1 : Game
     {
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _renderer = new Renderer(_spriteBatch);
-
-        CreateFloor();
     }
 
     protected override void Initialize()
@@ -89,79 +73,10 @@ public class Game1 : Game
         _graphics.SynchronizeWithVerticalRetrace = false;
         IsFixedTimeStep = false;
         _graphics.ApplyChanges();
+        
+        _environment.CreateCreatures(_rigidObjects);
 
         base.Initialize();
-    }
-    
-    private void CreateObstacles()
-    {
-        Vector2[] platformPositions = {
-            new (-500, 500), new (-500, 450), new (500, 450), new (500, 500)
-        };
-        
-        Vector2[] platform2Positions = {
-            new (600, 500), new (600, 450), new (900, 450), new (900, 500)
-        };
-
-        Vector2[] platform3Positions = {
-            new (350, 250), new (350, 200), new (650, 200), new (650, 250)
-        };
-        
-        Hull platform = Hull.FromPositions(_obstacleMaterial, platformPositions, isStatic: true, isFloor: true);
-        Hull platform2 = Hull.FromPositions(_obstacleMaterial, platform2Positions, isStatic: true, isFloor: true);
-        Hull platform3 = Hull.FromPositions(_obstacleMaterial, platform3Positions, isStatic: true, isFloor: true);
-
-        platform.Rotate(60);
-        platform2.Rotate(-60);
-        _rigidObjects.Add(platform);
-        _rigidObjects.Add(platform2);
-        _rigidObjects.Add(platform3);
-    }
-
-    private void CreateFloor()
-    {
-        if (RoughFloor)
-        {
-            CreateRoughFloor();
-            return;
-        }
-        
-        Vector2[] floorPositions = {
-            new (-50, 1050), new (-50, 900), new (1050, 900), new (1050, 1050)
-        };
-
-        Hull floor = Hull.FromPositions(_obstacleMaterial, floorPositions, isStatic: true, isFloor: true);
-        _rigidObjects.Add(floor);
-        
-    }
-
-    private void CreateRoughFloor()
-    {
-        const int segments = 10;
-        const int roughness = 100;
-        
-        int initialY = 800;
-        int initialX = -50;
-        
-        Random random = new Random();
-        Vector2 previousVector = new Vector2(initialX, initialY + random.Next(0, roughness));
-        int movement = 1200 / segments;
-
-        for (int i = 0; i < segments; i++)
-        {
-            int x = initialX + (i * movement);
-            int y = 800 + random.Next(0, roughness);
-
-            Vector2[] positions =
-            {
-                new(x, 1050), previousVector, new(x, y), new(x + movement, 1050)
-            };
-            
-            Hull segment = Hull.FromPositions(_obstacleMaterial, positions, isStatic: true);
-            _rigidObjects.Add(segment);
-                
-            previousVector = new Vector2(x, y);
-        }
     }
 
     // perform action, then do physics update
@@ -172,10 +87,12 @@ public class Game1 : Game
         
         float deltaTime = (float) gameTime.ElapsedGameTime.TotalSeconds;
         
-        HandleInputs(deltaTime);
-        UpdateEnvironment(deltaTime);
+        _environment.UpdateWalkers();
+        _environment.TakeActions();
+        StepObjects(deltaTime);
+        _environment.CheckStates(_rigidObjects);
 
-            //UpdateGUI();
+        HandleInputs(deltaTime);
     }   
 
     protected override void Draw(GameTime gameTime)
@@ -188,15 +105,14 @@ public class Game1 : Game
     private void RenderObjects()
     {
         _spriteBatch.Begin();
-        //_walker.Render(_renderer);
+        
+        _environment.RenderWalkers(_renderer);
 
         foreach (var iObject in _rigidObjects)
         {
             _renderer.RenderRigidObject(iObject);
         }
         
-        _renderer.RenderJoint(_walker.GetJointColors());
-
         foreach (var iObject in _softObjects)
         {
             _renderer.RenderSoftObject(iObject);
@@ -221,10 +137,7 @@ public class Game1 : Game
         
         for (int i = 0; i < Iterations; i++)
         {
-            foreach (var joint in _walker.GetJoints())
-            {
-                joint.Step(deltaTime);
-            }
+            _environment.StepWalkers(deltaTime);
 
             foreach (var rigidObject in _rigidObjects)
             {
@@ -245,68 +158,57 @@ public class Game1 : Game
 
     private void HandleInputs(float deltaTime)
     {
-        if (EntityCount < EntityCap)
+        if (_entityCount < EntityCap)
         {
             if (_input.IsKeyPressed(Keys.S)) 
             {
-                Square square = Square.FromSize(_squareMaterial, _input.GetMousePosition(), EntitySize);
+                Square square = Square.FromSize(_squareMaterial, _input.GetMousePosition(), _entitySize);
                 square.AddAcceleration(new Vector2(0, 980f)); // gravity
                 //square.AddAcceleration(new Vector2(200f, 0)); // wind
-                EntityCount += 1;
+                _entityCount += 1;
                 _rigidObjects.Add(square);
             }
             
             if (_input.IsKeyPressed(Keys.P)) 
             {
-                Triangle triangle = Triangle.FromSize(_squareMaterial, _input.GetMousePosition(), EntitySize);
+                Triangle triangle = Triangle.FromSize(_squareMaterial, _input.GetMousePosition(), _entitySize);
                 triangle.AddAcceleration(new Vector2(0, 980f));
-                EntityCount += 1;
+                _entityCount += 1;
                 _rigidObjects.Add(triangle);
             }
-            
-            if (_input.IsKeyPressed(Keys.OemSemicolon)) 
-            {
-                Console.WriteLine(_training ? "No longer training." : "Now training.");
-                _training = !_training;
-            }
-            
+
             if (_input.IsKeyPressed(Keys.O)) 
             {
-                Pole pole = Pole.FromSize(_squareMaterial, _input.GetMousePosition(), EntitySize);
+                Pole pole = Pole.FromSize(_squareMaterial, _input.GetMousePosition(), _entitySize);
                 pole.AddAcceleration(new Vector2(0, 980f));
-                EntityCount += 1;
+                _entityCount += 1;
                 _rigidObjects.Add(pole);
             }
         
             if (_input.IsKeyPressed(Keys.C)) 
             {
-                Square square = Square.FromSize(_squareMaterial, _input.GetMousePosition(), EntitySize);
+                Square square = Square.FromSize(_squareMaterial, _input.GetMousePosition(), _entitySize);
                 square.AddAcceleration(new Vector2(0, 980f));
                 square.SmoothCorners(2);
-                EntityCount += 1;
+                _entityCount += 1;
                 _rigidObjects.Add(square);
             }
         
             if (_input.IsKeyPressed(Keys.H)) 
             {
-                Hexagon hexagon = Hexagon.FromSize(_squareMaterial, _input.GetMousePosition(), EntitySize);
+                Hexagon hexagon = Hexagon.FromSize(_squareMaterial, _input.GetMousePosition(), _entitySize);
                 hexagon.AddAcceleration(new Vector2(0, 980f));
-                EntityCount += 1;
+                _entityCount += 1;
                 _rigidObjects.Add(hexagon);
             }
 
             if (_input.IsKeyPressed(Keys.D)) 
             {
-                Objects.SoftBodies.Square square = Objects.SoftBodies.Square.FromSize(_squareMaterial, _input.GetMousePosition(), EntitySize / 10, EntitySize / 5);
+                Objects.SoftBodies.Square square = Objects.SoftBodies.Square.FromSize(_squareMaterial, _input.GetMousePosition(), _entitySize / 10, _entitySize / 5);
                 square.AddAcceleration(new Vector2(0, 980));
                 _softObjects.Add(square);
-                EntityCount += 10; 
+                _entityCount += 10; 
             }
-        }
-        
-        if (_input.IsKeyPressed(Keys.Q))
-        {
-            StartTraining();
         }
         
         if (_input.IsKeyPressed(Keys.I))
@@ -337,31 +239,20 @@ public class Game1 : Game
         if (_input.IsKeyPressed(Keys.K))
         {
             Console.WriteLine("Saving the current weights.");
-            _walker.Save(CriticFileLocation, ActorFileLocation);
+            _environment.Save();
         }
         
         if (_input.IsKeyPressed(Keys.L))
         {
             Console.WriteLine("Loading the current weights.");
-            _walker.Load(CriticFileLocation, ActorFileLocation);
-            Reset();
+            _environment.Load();
         }
 
-        if (_input.IsKeyPressed(Keys.Up))
-        {
-            EntitySize += 10;
-        }
-        
-        if (_input.IsKeyPressed(Keys.X))
-        {
-            _walker.GetJoints()[2].SetTorque(-1);
-        }
-        
         if (_input.IsKeyPressed(Keys.Down))
         {
-            if (EntitySize >= 20)
+            if (_entitySize >= 20)
             {
-                EntitySize -= 10;
+                _entitySize -= 10;
             }
         }
 
@@ -411,101 +302,5 @@ public class Game1 : Game
         }
 
         return null;
-    }
-
-    private void UpdateEnvironment(float deltaTime)
-    {
-        deltaTime /= _speed;
-        for (int i = 0; i < _speed; i++)
-        {
-            Steps += 1;
-            _walker.Update();
-            if (Steps != 1) TakeAction();
-
-            StepObjects(deltaTime);
-            CheckState();
-        }
-    }
-
-    private void TakeAction()
-    {
-        Matrix state = _walker.GetState();
-        if (_training) _currentTrajectory.States.Add(state);
-        
-        Matrix actions = _walker.GetActions(state, out Matrix probabilities, out Matrix mean, out Matrix std);
-        _walker.TakeActions(actions);
-
-        if (_training)
-        {
-            _currentTrajectory.LogProbabilities.Add(probabilities);
-            _currentTrajectory.Means.Add(mean);
-            _currentTrajectory.Stds.Add(std);
-            _currentTrajectory.Actions.Add(actions);
-        }
-    }
-
-    private void CheckState()
-    {
-        GetReward();
-
-        if (_walker.GetPosition().X > 850)
-        {
-            _currentReward += 10;
-            TerminalState();
-            return;
-        }
-
-        if (_walker.Terminal || Steps >= 5000)
-        {
-            _currentReward -= 10;
-            TerminalState();
-            return;
-        }
-        
-        if (_training) _currentTrajectory.Rewards.Add(_currentReward);
-    }
-
-    private void TerminalState()
-    {
-        if (_training) _currentTrajectory.Rewards.Add(_currentReward);
-        _walker.RepairBody();
-        _walker.Terminal = false;
-        Reset();
-
-        if (_training) StartTraining();
-    }
-
-    // do position set by user?
-    private void GetReward()
-    {
-        _currentReward = _walker.GetChangeInPosition().X * 0.1f;
-        if (_walker.GetPosition().Y > 850)
-        {
-            _currentReward -= 0.0001f;
-        }
-    }
-    
-    private void StartTraining()
-    {
-        TrainNetworks();
-        
-        _currentTrajectory = new Trajectory();
-    }
-
-    private void TrainNetworks()
-    {
-        _walker.Train(_currentTrajectory);
-    }
-
-    private void Reset()
-    {
-        _walker.Reset();
-        _rigidObjects.Clear();
-        _softObjects.Clear();
-        _water.Clear();
-        EntityCount = 0;
-        Steps = 0;
-        CreateFloor();
-        _walker.CreateCreature(_rigidObjects);
     }
 }

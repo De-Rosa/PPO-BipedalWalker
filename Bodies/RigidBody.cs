@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Numerics;
+using System.Xml;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Physics.Bodies.Physics;
@@ -33,6 +34,7 @@ public class RigidBody : IBody
     private float _angle;
     
     private readonly bool _isFloor;
+    private int _tag;
     public bool Collided;
 
     public RigidBody(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isFloor = false)
@@ -43,6 +45,8 @@ public class RigidBody : IBody
         _friction = material.Friction;
         _associatedBodies = new List<RigidBody>();
         _color = material.Color;
+
+        _tag = -1;
         
         _isFloor = isFloor;
         Collided = false;
@@ -77,6 +81,7 @@ public class RigidBody : IBody
             if (iObject == this) continue;
             RigidBody iBody = (RigidBody) iObject.GetBody();
             if (_associatedBodies.Contains(iBody)) continue;
+            if (_tag != iBody._tag && _tag != -1 && iBody._tag != -1) continue;
             
             if (!Skeleton.IsColliding(Skeleton, iBody.Skeleton)) continue;
             
@@ -166,6 +171,11 @@ public class RigidBody : IBody
     public void AddAngularVelocity(float angularVelocity)
     {
         _angularVelocity += angularVelocity;
+    }
+
+    public void SetTag(int tag)
+    {
+        _tag = tag;
     }
 
     public void SmoothCorners(int count = 1)

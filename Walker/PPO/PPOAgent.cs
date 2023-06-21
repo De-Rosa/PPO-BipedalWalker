@@ -14,9 +14,10 @@ public partial class PPOAgent
     private readonly NeuralNetwork _criticNetwork;
     private readonly NeuralNetwork _actorNetwork;
 
-    private const int DenseSize = 64;
-    private const int Epochs = 5;
-    private const int BatchSize = 64;
+    // Agent hyper-parameters
+    private const int DenseSize = 128;
+    private const int Epochs = 4;
+    private const int BatchSize = 256;
     private const float Gamma = 0.99f; // Discount Factor
     private const float Lambda = 0.95f; // Smoothing Factor
     private const float Epsilon = 0.2f; // Clipping Factor
@@ -26,17 +27,15 @@ public partial class PPOAgent
     {
         // Critic neural network transforms a state into a scalar value estimate for use in training the actor
         _criticNetwork = new NeuralNetwork();
-        _criticNetwork.AddLayer(new DenseLayer(stateSize, DenseSize));
+        _criticNetwork.AddLayer(new DenseLayer(stateSize, DenseSize, BatchSize));
         _criticNetwork.AddLayer(new LeakyReLULayer());
-        _criticNetwork.AddLayer(new DenseLayer(DenseSize, 1));
+        _criticNetwork.AddLayer(new DenseLayer(DenseSize, 1, BatchSize));
 
         // Actor mean neural network transforms a state into an array of means to use in action sampling.
         _actorNetwork = new NeuralNetwork();
-        _actorNetwork.AddLayer(new DenseLayer(stateSize, DenseSize));
+        _actorNetwork.AddLayer(new DenseLayer(stateSize, DenseSize, BatchSize));
         _actorNetwork.AddLayer(new LeakyReLULayer());
-        _actorNetwork.AddLayer(new DenseLayer(DenseSize, DenseSize));
-        _actorNetwork.AddLayer(new LeakyReLULayer());
-        _actorNetwork.AddLayer(new DenseLayer(DenseSize, actionSize));
+        _actorNetwork.AddLayer(new DenseLayer(DenseSize, actionSize, BatchSize));
         _actorNetwork.AddLayer(new TanhLayer());
     }
 
@@ -103,8 +102,7 @@ public partial class PPOAgent
             // Derivative of the mean squared error
             // -2(G - V(s))
             float criticLoss = 2 * (GetValueEstimate(batch.States[i]) - batch.Returns[i]);
-            criticLoss /= BatchSize;
-            valueLoss += criticLoss;
+            valueLoss += criticLoss / BatchSize;
             
             SampleActions(batch.States[i], out Matrix logProbabilities, out Matrix mean, out Matrix std);
             
@@ -117,8 +115,7 @@ public partial class PPOAgent
 
             Matrix lClipMatrix = Matrix.Min(ratioAdvantage, clippedRatioAdvantage);
             float lClipMean = lClipMatrix.Mean();
-            lClipMean /= BatchSize;
-            lClip += lClipMean;
+            lClip += lClipMean / BatchSize;
 
             Matrix partA = Matrix.Compare(ratioAdvantage, clippedRatioAdvantage, 1f, 0f);
             partA *= batch.Advantages[i];
@@ -131,9 +128,6 @@ public partial class PPOAgent
             Matrix lClipDerivative = partA + Matrix.HadamardProduct(partB, partC);
             lClipDerivative *= -1f;
             lClipDerivative = Matrix.HadamardDivision(lClipDerivative, Matrix.Exponential(batch.LogProbabilities[i]));
-
-            // Entropy bonus
-            lClipDerivative -= Matrix.NormalEntropies(std);
             
             // Derivative of mean with respect to the policy
             // Equation 26
@@ -144,8 +138,6 @@ public partial class PPOAgent
 
             Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  (Matrix.HadamardDivision(actionsMinusMean, variance)));
             meanDerivative = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
-            
-            meanDerivative /= BatchSize;
             
             _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
             _actorNetwork.FeedBack(meanDerivative);

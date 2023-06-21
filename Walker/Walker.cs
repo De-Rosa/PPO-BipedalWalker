@@ -19,9 +19,10 @@ public class Walker
     private Vector2 _position;
     private Vector2 _previousPosition;
     private BodyParts _bodyParts;
-    private readonly PPO.PPOAgent _brain;
+    private readonly PPOAgent _brain;
 
     public bool Terminal;
+    private int _tag;
 
     public Walker()
     {
@@ -32,7 +33,20 @@ public class Walker
         _position = new Vector2(125, 800);
         _previousPosition = _position;
         Terminal = false;
+        _tag = 0;
     }
+
+    public Walker(PPOAgent brain, int tag)
+    {
+        _joints = new List<Joint>();
+        _brain = brain;
+        _bodyParts = new BodyParts();
+        _material = new Carpet();
+        _position = new Vector2(125, 800);
+        _previousPosition = _position;
+        Terminal = false;
+        _tag = tag;
+    } 
     
     public void CreateCreature(List<IObject> rigidBodies)
     {
@@ -110,6 +124,11 @@ public class Walker
         return _position;
     }
 
+    public PPOAgent GetBrain()
+    {
+        return _brain;
+    }
+
     public float GetBodyVelocityMagnitude()
     {
         return _bodyParts.Body.GetLinearVelocity().Length();
@@ -137,21 +156,8 @@ public class Walker
             _bodyParts.LeftLegUpperSegment.GetLinearVelocity().X,
             _bodyParts.RightLegLowerSegment.GetLinearVelocity().X,
             _bodyParts.RightLegUpperSegment.GetLinearVelocity().X
-            
-            /*(_joints[0].GetPointA().X - 125) / 50,
-            (_joints[1].GetPointA().X - 125) / 50,
-            (_joints[2].GetPointA().X - 125) / 50,
-            (_joints[3].GetPointA().X - 125) / 50,
-            
-            (_joints[0].GetPointA().Y - 800) / 50,
-            (_joints[1].GetPointA().Y - 800) / 50,
-            (_joints[2].GetPointA().Y - 800) / 50,
-            (_joints[3].GetPointA().Y - 800) / 50,*/
         };
-        
-        // Normalization
-        //NormalizeState(values);
-        
+
         return Matrix.FromValues(values);
     }
 
@@ -183,12 +189,18 @@ public class Walker
 
         _bodyParts.Body = Hull.FromSkeleton(_material, bodySkeleton);
         _bodyParts.Body.SetInverseInertia(0.0005f);
+        _bodyParts.Body.SetTag(_tag);
 
         _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
         _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50f), 75);
+        _bodyParts.LeftLegUpperSegment.SetTag(_tag);
+        _bodyParts.LeftLegLowerSegment.SetTag(_tag);
 
         _bodyParts.RightLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
         _bodyParts.RightLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50f), 75);
+        _bodyParts.RightLegUpperSegment.SetTag(_tag);
+        _bodyParts.RightLegLowerSegment.SetTag(_tag);
+
 
         rigidBodies.AddRange(new IObject[] {_bodyParts.LeftLegLowerSegment, _bodyParts.LeftLegUpperSegment, _bodyParts.Body, _bodyParts.RightLegLowerSegment, _bodyParts.RightLegUpperSegment});
     }
@@ -221,14 +233,24 @@ public class Walker
         _bodyParts.Body.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.RightLegUpperSegment});
     }
 
-    public void Reset()
+    public void Reset(List<IObject> rigidBodies)
     {
+        RemoveRigidObjects(rigidBodies);        
         _joints.Clear();
         _bodyParts = new BodyParts();
         Terminal = false;
         
         _position = new Vector2(125, 800);
         _previousPosition = _position;
+    }
+
+    private void RemoveRigidObjects(List<IObject> rigidBodies)
+    {
+        rigidBodies.Remove(_bodyParts.Body);
+        rigidBodies.Remove(_bodyParts.LeftLegLowerSegment);
+        rigidBodies.Remove(_bodyParts.LeftLegUpperSegment);
+        rigidBodies.Remove(_bodyParts.RightLegLowerSegment);
+        rigidBodies.Remove(_bodyParts.RightLegUpperSegment);
     }
 
     public void RepairBody()
