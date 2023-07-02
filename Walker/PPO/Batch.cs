@@ -1,3 +1,5 @@
+using System;
+
 namespace Physics.Walker.PPO;
 
 public class Batch
@@ -13,6 +15,8 @@ public class Batch
     public readonly float[] Advantages;
     public readonly float[] Values;
 
+    public int Index;
+
     public Batch(int batchSize)
     {
         States = new Matrix[batchSize];
@@ -24,5 +28,6 @@ public class Batch
         Returns = new float[batchSize];
         Values = new float[batchSize];
         Advantages = new float[batchSize];
+        Index = 0;
     }
 }

@@ -88,10 +88,11 @@ public class RigidBody : IBody
             List<Vector2> vectorA = Skeleton.GetVectors();
             List<Vector2> vectorB = iBody.GetVectors();
             
-            if (iBody._isFloor) Collided = true;
-            
             if (SATCollision.IsColliding(vectorA, vectorB, Skeleton.GetCentroid(), iBody.GetCentroid(), out Vector2 normal, out float depth))
             {
+                if (iBody._isFloor) Collided = true;
+                if (_isFloor) iBody.Collided = true;
+                
                 List<Vector2> contactPoints = ContactPoints.GetContactPoints(vectorA, vectorB, normal);
                 MoveObjects(this, iBody, normal, depth);
                 Impulses.ResolveCollisions(this, iBody, contactPoints, normal);

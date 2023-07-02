@@ -35,7 +35,6 @@ public class Game1 : Game
     private IMaterial _squareMaterial = new Wood();
 
     private const int Iterations = 50;
-    private int _speed = 1;
 
     private int _entityCount = 0;
     private int _entitySize = 50;
@@ -235,6 +234,12 @@ public class Game1 : Game
         {
             _squareMaterial = new Carpet();
         }
+
+        if (_input.IsKeyPressed(Keys.Q))
+        {
+            Console.WriteLine("Saving data.");
+            _environment.SaveData();
+        }
         
         if (_input.IsKeyPressed(Keys.K))
         {
@@ -256,17 +261,24 @@ public class Game1 : Game
             }
         }
 
-        if (_input.IsKeyPressed(Keys.Right))
+        if (_input.IsKeyHeld(Keys.Right))
         {
-            _speed += 1;
-            Console.WriteLine($"Speed is now {_speed}.");
+            _renderer.MoveCamera(new Vector2(-1, 0));
         }
 
-        if (_input.IsKeyPressed(Keys.Left))
+        if (_input.IsKeyHeld(Keys.Left))
         {
-            _speed -= 1;
-            if (_speed < 1) _speed = 1;
-            Console.WriteLine($"Speed is now {_speed}.");
+            _renderer.MoveCamera(new Vector2(1, 0));
+        }
+        
+        if (_input.IsKeyHeld(Keys.Up))
+        {
+            _renderer.MoveCamera(new Vector2(0, 1));
+        }
+
+        if (_input.IsKeyHeld(Keys.Down))
+        {
+            _renderer.MoveCamera(new Vector2(0, -1));
         }
         
         if (_input.IsMouseHeld())

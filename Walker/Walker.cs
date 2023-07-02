@@ -142,20 +142,20 @@ public class Walker
     {
         float[] values = new[]
         {
-            _bodyParts.LeftLegLowerSegment.GetAngularVelocity() * 10,
-            _bodyParts.LeftLegUpperSegment.GetAngularVelocity() * 10,
-            _bodyParts.RightLegLowerSegment.GetAngularVelocity() * 10,
-            _bodyParts.RightLegUpperSegment.GetAngularVelocity() * 10, 
+            _bodyParts.LeftLegLowerSegment.GetAngularVelocity() * 2f,
+            _bodyParts.LeftLegUpperSegment.GetAngularVelocity() * 2f,
+            _bodyParts.RightLegLowerSegment.GetAngularVelocity() * 2f,
+            _bodyParts.RightLegUpperSegment.GetAngularVelocity() * 2f, 
 
-            -_bodyParts.LeftLegLowerSegment.GetLinearVelocity().Y,
-            -_bodyParts.LeftLegUpperSegment.GetLinearVelocity().Y,
-            -_bodyParts.RightLegLowerSegment.GetLinearVelocity().Y,
-            -_bodyParts.RightLegUpperSegment.GetLinearVelocity().Y, 
+            -_bodyParts.LeftLegLowerSegment.GetLinearVelocity().Y / 2f,
+            -_bodyParts.LeftLegUpperSegment.GetLinearVelocity().Y / 2f,
+            -_bodyParts.RightLegLowerSegment.GetLinearVelocity().Y / 2f,
+            -_bodyParts.RightLegUpperSegment.GetLinearVelocity().Y / 2f, 
                 
-            _bodyParts.LeftLegLowerSegment.GetLinearVelocity().X,
-            _bodyParts.LeftLegUpperSegment.GetLinearVelocity().X,
-            _bodyParts.RightLegLowerSegment.GetLinearVelocity().X,
-            _bodyParts.RightLegUpperSegment.GetLinearVelocity().X
+            _bodyParts.LeftLegLowerSegment.GetLinearVelocity().X / 2f,
+            _bodyParts.LeftLegUpperSegment.GetLinearVelocity().X / 2f,
+            _bodyParts.RightLegLowerSegment.GetLinearVelocity().X / 2f,
+            _bodyParts.RightLegUpperSegment.GetLinearVelocity().X / 2f,
         };
 
         return Matrix.FromValues(values);

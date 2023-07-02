@@ -14,12 +14,21 @@ public sealed class Renderer
 {
     private readonly SpriteBatch _spriteBatch;
     private readonly Texture2D _lineTexture;
+
+    private Vector2 _camera;
     
     public Renderer(SpriteBatch spriteBatch)
     {
         _spriteBatch = spriteBatch;
         _lineTexture = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
         _lineTexture.SetData(new[] { Color.White });
+        
+        _camera = Vector2.Zero;
+    }
+
+    public void MoveCamera(Vector2 vector)
+    {
+        _camera += vector;
     }
 
     public void RenderRigidObject(IObject iObject)
@@ -30,7 +39,7 @@ public sealed class Renderer
         
         for (int i = 0; i < vectors.Count; i++)
         {
-            DrawLine(vectors[i], vectors[(i+1) % vectors.Count], color);
+            DrawLine(vectors[i] + _camera, vectors[(i+1) % vectors.Count] + _camera, color);
         }
     }
 
@@ -48,7 +57,7 @@ public sealed class Renderer
         List<Point> points = iBody.GetPoints();
         foreach (var point in points)
         {
-            DrawSquare(point.GetVector(), 3, Color.DarkRed, 2f);
+            DrawSquare(point.GetVector() + _camera, 3, Color.DarkRed, 2f);
         }
 
         List<Spring> springs = iBody.GetSprings();
@@ -56,27 +65,27 @@ public sealed class Renderer
         {
             Vector2 pointA = spring.GetPointA().GetVector();
             Vector2 pointB = spring.GetPointB().GetVector();
-            DrawLine(pointA, pointB, Color.DarkRed);
+            DrawLine(pointA + _camera, pointB + _camera, Color.DarkRed);
         }
     }
     
     public void RenderWater(Water water)
     {
-        DrawSquare(water.GetVector(), 7, Color.Cyan, 7f);
+        DrawSquare(water.GetVector() + _camera, 7, Color.Cyan, 7f);
     }
 
     public void DrawLine(Vector2 point1, Vector2 point2, Color color, float thickness = 1f)
     {
         var distance = Vector2.Distance(point1, point2);
         var angle = (float)Math.Atan2(point2.Y - point1.Y, point2.X - point1.X);
-        DrawLine(point1, distance, angle, color, thickness);
+        DrawLine(point1 + _camera, distance, angle, color, thickness);
     }
 
     private void DrawLine(Vector2 point, float length, float angle, Color color, float thickness = 1f)
     {
         var origin = new Vector2(0f, 0.5f);
         var scale = new Vector2(length, thickness);
-        _spriteBatch.Draw(_lineTexture, point, null, color, angle, origin, scale, SpriteEffects.None, 0);
+        _spriteBatch.Draw(_lineTexture, point + _camera, null, color, angle, origin, scale, SpriteEffects.None, 0);
     }
 
     public void DrawSquare(Vector2 origin, float length, Color color, float thickness = 1f)
@@ -85,7 +94,7 @@ public sealed class Renderer
         Vector2[] points = new Vector2[] { squareOrigin, new Vector2(squareOrigin.X + length, squareOrigin.Y), new Vector2(squareOrigin.X + length, squareOrigin.Y + length), new Vector2(squareOrigin.X, squareOrigin.Y + length)};
         for (int i = 0; i < points.Length; i++)
         {
-            DrawLine(points[i], points[(i + 1) % points.Length], color, thickness);
+            DrawLine(points[i] + _camera, points[(i + 1) % points.Length] + _camera, color, thickness);
         }
     }
 }

@@ -626,9 +626,9 @@ public class Matrix
         
         for (int i = 0; i < newMatrix._height; i++)
         {
-            float mean = meanMatrix._values[i][0];
-            float std = stdMatrix._values[i][0];
-            float action = actionMatrix._values[i][0];
+            float mean = meanMatrix.GetValue(i, 0);
+            float std = stdMatrix.GetValue(i, 0);
+            float action = actionMatrix.GetValue(i, 0);
 
             newMatrix._values[i][0] = MathF.Log(NormalDistribution.ProbabilityDensity(mean, std, action));
         }

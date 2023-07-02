@@ -13,13 +13,13 @@ public class DenseLayer : Layer
 
     // Adam hyper-parameters
     // Adam paper states "Good default settings for the tested machine learning problems are alpha=0.001, beta1=0.9, beta2=0.999 and epsilon=1e−8f"
-    private const float Alpha = 0.005f; // step size
+    private const float Alpha = 0.01f; // step size
     private const float Beta1 = 0.9f; // 1st-order exponential decay
     private const float Beta2 = 0.999f; // 2nd-order exponential decay
     private const float Epsilon = 1e-8f; // prevent zero division
 
-    private Matrix _derivativeLossDerivativeWeights;
-    private Matrix _derivativeLossDerivativeBiases;
+    private Matrix _derivativeLossWrtWeights; // derivative of the loss with respect to the weights
+    private Matrix _derivativeLossWrtBiases; // derivative of the loss with respect to the biases
     private Matrix _meanGradientWeights;
     private Matrix _meanGradientBiases;
     private Matrix _varianceGradientWeights;
@@ -40,8 +40,8 @@ public class DenseLayer : Layer
         _meanGradientBiases = Matrix.FromZeroes(outputSize, 1);
         _varianceGradientWeights = Matrix.FromZeroes(outputSize, inputSize);
         _varianceGradientBiases = Matrix.FromZeroes(outputSize, 1);
-        _derivativeLossDerivativeWeights = Matrix.FromZeroes(outputSize, inputSize);
-        _derivativeLossDerivativeBiases = Matrix.FromZeroes(outputSize, 1);
+        _derivativeLossWrtWeights = Matrix.FromZeroes(outputSize, inputSize);
+        _derivativeLossWrtBiases = Matrix.FromZeroes(outputSize, 1);
     }
 
     private DenseLayer()
@@ -54,8 +54,8 @@ public class DenseLayer : Layer
         {
             _weights = _weights.Clone(),
             _biases = _biases.Clone(),
-            _derivativeLossDerivativeWeights = _derivativeLossDerivativeWeights.Clone(),
-            _derivativeLossDerivativeBiases = _derivativeLossDerivativeBiases.Clone(),
+            _derivativeLossWrtWeights = _derivativeLossWrtWeights.Clone(),
+            _derivativeLossWrtBiases = _derivativeLossWrtBiases.Clone(),
             _meanGradientWeights = _meanGradientWeights.Clone(),
             _meanGradientBiases = _meanGradientBiases.Clone(),
             _varianceGradientWeights = _varianceGradientWeights.Clone(),
@@ -103,9 +103,8 @@ public class DenseLayer : Layer
     // adjust weights in the direction of the gradient
     public override Matrix FeedBack(Matrix matrix, Matrix gradient)
     {
-        float ratio = 1f / _batchSize;
-        _derivativeLossDerivativeBiases += (Matrix.Flatten(gradient)) * ratio;
-        _derivativeLossDerivativeWeights += gradient * Matrix.Transpose(matrix) * ratio;
+        _derivativeLossWrtBiases += (Matrix.Flatten(gradient));
+        _derivativeLossWrtWeights += gradient * Matrix.Transpose(matrix);
         return Matrix.Transpose(_weights) * gradient;
     }
 
@@ -117,13 +116,13 @@ public class DenseLayer : Layer
         
         // momentum
         // mean2 = beta1 * mean1 + (1 - beta1) * gradient
-        _meanGradientWeights = ((1 - Beta1) * _derivativeLossDerivativeWeights) + (Beta1 * _meanGradientWeights);
-        _meanGradientBiases = ((1 - Beta1) * _derivativeLossDerivativeBiases) + (Beta1 * _meanGradientBiases);
+        _meanGradientWeights = ((1 - Beta1) * _derivativeLossWrtWeights) + (Beta1 * _meanGradientWeights);
+        _meanGradientBiases = ((1 - Beta1) * _derivativeLossWrtBiases) + (Beta1 * _meanGradientBiases);
         
         // rms
         // variance2 = beta2 * variance1 + (1 - beta2) * gradient^2
-        _varianceGradientWeights = (Beta1 * _varianceGradientWeights) + (1 - Beta1) * Matrix.HadamardProduct(_derivativeLossDerivativeWeights, _derivativeLossDerivativeWeights);
-        _varianceGradientBiases = (Beta2 * _varianceGradientBiases) + (1 - Beta2) * Matrix.HadamardProduct(_derivativeLossDerivativeBiases, _derivativeLossDerivativeBiases);
+        _varianceGradientWeights = (Beta1 * _varianceGradientWeights) + (1 - Beta1) * Matrix.HadamardProduct(_derivativeLossWrtWeights, _derivativeLossWrtWeights);
+        _varianceGradientBiases = (Beta2 * _varianceGradientBiases) + (1 - Beta2) * Matrix.HadamardProduct(_derivativeLossWrtBiases, _derivativeLossWrtBiases);
         
         // bias correction
         // mean2 = mean1 / (1 - beta1^t)
@@ -139,7 +138,7 @@ public class DenseLayer : Layer
 
     public void ZeroGradients()
     {
-        _derivativeLossDerivativeWeights.Zero();
-        _derivativeLossDerivativeBiases.Zero();
+        _derivativeLossWrtWeights.Zero();
+        _derivativeLossWrtBiases.Zero();
     }
 }

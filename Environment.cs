@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Physics.Bodies;
@@ -18,6 +19,7 @@ public class Environment
     private List<Walker.Walker> _simultaneousWalkers;
     
     private List<float> _rewards;
+    private List<float[]> _averageRewards;
     private List<Trajectory> _trajectories;
     
     private bool _training = true;
@@ -29,13 +31,16 @@ public class Environment
 
     private const string CriticFileLocation = "/Users/square/Projects/Physics/SavedModels/critic.txt";
     private const string ActorFileLocation = "/Users/square/Projects/Physics/SavedModels/actor.txt";
+    private const string DataFileLocation = "/Users/square/Projects/Physics/Data/data.txt";
     private const int SimultaneousWalkerCount = 1;
+    private const int DataLength = 1;
 
     public Environment(List<IObject> rigidBodies)
     {
         _walker = new Walker.Walker();
         _simultaneousWalkers = new List<Walker.Walker>();
-        
+        _averageRewards = new List<float[]>();
+
         CreateFloor(rigidBodies);
         ResetLists();
     }
@@ -45,7 +50,7 @@ public class Environment
         _rewards = new List<float>();
         _trajectories = new List<Trajectory>();
 
-        for (int i = 0; i < SimultaneousWalkerCount + 1; i++)
+        for (int i = 0; i < SimultaneousWalkerCount; i++)
         {
             _rewards.Add(0);
             _trajectories.Add(new Trajectory());
@@ -65,7 +70,7 @@ public class Environment
     public void TakeActions()
     {
         if (_steps == 1) return;
-        
+
         for (int i = 0; i < _simultaneousWalkers.Count; i++)
         {
             TakeAction(_simultaneousWalkers[i], i);
@@ -74,6 +79,8 @@ public class Environment
     
     public void CheckStates(List<IObject> rigidBodies)
     {
+        if (_steps == 1) return;
+
         for (int i = 0; i < _simultaneousWalkers.Count; i++)
         {
             CheckState(rigidBodies, _simultaneousWalkers[i], i);
@@ -94,6 +101,18 @@ public class Environment
         {
             renderer.RenderJoint(walker.GetJointColors());
         }
+    }
+
+    public void SaveData()
+    {
+        string data = "";
+        for (int i = 0; i < _averageRewards.Count; i++)
+        {
+            if (i % DataLength != 0) continue;
+            data += _averageRewards[i].Average() + " ";
+        }
+        
+        File.WriteAllLines(DataFileLocation, new string[]{data, _averageRewards.Count.ToString()});
     }
 
     public void Save()
@@ -125,18 +144,18 @@ public class Environment
 
     private void CheckState(List<IObject> rigidBodies, Walker.Walker walker, int position)
     {
-        GetRewards();
+        GetReward(walker, position);
 
         if (walker.GetPosition().X > 850)
         {
-            _rewards[position] += 10;
+            _rewards[position] += 500;
             TerminalState(rigidBodies, walker, position);
             return;
         }
 
         if (walker.Terminal || _steps >= 10000)
         {
-            _rewards[position] -= 10;
+            if (walker.Terminal) _rewards[position] -= 50;
             TerminalState(rigidBodies, walker, position);
             return;
         }
@@ -156,25 +175,15 @@ public class Environment
         if (_training && _deadCount == SimultaneousWalkerCount) StartTraining(rigidBodies);
     }
 
-    private void GetRewards()
-    {
-        for (int i = 0; i < _simultaneousWalkers.Count; i++)
-        {
-            GetReward(_simultaneousWalkers[i], i + 1);
-        }
-    }
-    
     private void GetReward(Walker.Walker walker, int position)
     {
-        _rewards[position] = walker.GetChangeInPosition().X * 0.1f;
-        if (walker.GetPosition().Y > 850)
-        {
-            _rewards[position] -= 0.0001f;
-        }
+        _rewards[position] = walker.GetChangeInPosition().X;
     }
     
     private void StartTraining(List<IObject> rigidBodies)
     {
+        _averageRewards.Add(GetAverageRewards());
+        SaveData();
         TrainNetworks();
         ResetAll(rigidBodies);
     }
@@ -185,6 +194,18 @@ public class Environment
         {
             _walker.Train(trajectory);
         }
+    }
+
+    private float[] GetAverageRewards()
+    {
+        float[] totalAverage = new float[SimultaneousWalkerCount];
+        for (int i = 0; i < SimultaneousWalkerCount; i++)
+        {
+            float average = _trajectories[i].Rewards.Sum();
+            totalAverage[i] = average;
+        }
+
+        return totalAverage;
     }
 
     private void Reset(Walker.Walker walker, List<IObject> rigidBodies)
