@@ -1,15 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
 using Physics.Rendering;
 using Physics.Walker.PPO.Network;
 
 namespace Physics.Walker.PPO;
 
-public partial class PPOAgent
+public class PPOAgent
 {
     private readonly NeuralNetwork _criticNetwork;
     private readonly NeuralNetwork _actorNetwork;
@@ -18,18 +16,18 @@ public partial class PPOAgent
     // Agent hyper-parameters
     private const int DenseSize = 128;
     private const int Epochs = 5;
-    private const int BatchSize = 512;
-    private const float Gamma = 0.99f; // Discount Factor
+    private const int BatchSize = 256;
+    private const float Gamma = 0.95f; // Discount Factor
     private const float Lambda = 0.95f; // Smoothing Factor
     private const float Epsilon = 0.2f; // Clipping Factor
 
-    private readonly int StateSize;
-    private readonly int ActionSize;
+    private readonly int _stateSize;
+    private readonly int _actionSize;
 
     public PPOAgent(int stateSize, int actionSize)
     {
-        StateSize = stateSize;
-        ActionSize = actionSize;
+        _stateSize = stateSize;
+        _actionSize = actionSize;
         
         // Critic neural network transforms a state into a scalar value estimate for use in training the actor
         _criticNetwork = new NeuralNetwork();
@@ -77,6 +75,7 @@ public partial class PPOAgent
 
     public void Train(Trajectory trajectory)
     {
+        
         for (int i = 0; i < Epochs; i++)
         {
             List<Batch> batches = CreateBatches(trajectory);
@@ -93,16 +92,17 @@ public partial class PPOAgent
             }
         }
         
-        Console.WriteLine($"New standard deviation: {MathF.Exp(_logStandardDeviation - 0.001f)}, previously {Math.Exp(_logStandardDeviation)}");
-        _logStandardDeviation -= 0.001f;
+        //Console.WriteLine($"New standard deviation: {MathF.Exp(_logStandardDeviation - 0.001f)}, previously {Math.Exp(_logStandardDeviation)}");
+        //_logStandardDeviation -= 0.001f;
     }
 
-    private void Train(Batch batch, out float totalCriticLoss)
+    
+    private void Train(Batch batch, out float averageCriticLoss)
     {
         _actorNetwork.Zero();
         _criticNetwork.Zero();
 
-        totalCriticLoss = 0;
+        averageCriticLoss = 0;
         
         Matrix std = GetStandardDeviations();
 
@@ -111,10 +111,13 @@ public partial class PPOAgent
         for (int i = 0; i < BatchSize; i++)
         {
             // Derivative of the mean squared error
-            // -2(G - V(s))
-            float criticLoss = 2 * (batch.Values[i] - batch.Returns[i]);
+            // 2(V(s) - G)
             
-            Matrix mean = GetMeanOutput(batch.States[i]);
+            // we recalculate the value estimate to get the cache values correct
+            float valueEstimate = GetValueEstimate(batch.States[i], true);
+            float criticLoss = 2 * (valueEstimate - batch.Returns[i]);
+            
+            Matrix mean = GetMeanOutput(batch.States[i], true);
             Matrix logProbabilities = GetLogProbabilities(mean, std, batch.Actions[i]);
             
             // Derivative of L Clip with respect to the policy
@@ -124,7 +127,7 @@ public partial class PPOAgent
             Matrix clippedRatio = Matrix.Clip(ratio, 1f + Epsilon, 1f - Epsilon);
             Matrix clippedRatioAdvantage = clippedRatio * batch.Advantages[i];
             Matrix ratioAdvantage = ratio * batch.Advantages[i];
-
+            
             Matrix partA = Matrix.Compare(ratioAdvantage, clippedRatioAdvantage, 1f, 0f);
             partA *= batch.Advantages[i];
 
@@ -144,35 +147,38 @@ public partial class PPOAgent
             Matrix actionsMinusMean = batch.Actions[i] - mean;
             Matrix variance = Matrix.HadamardProduct(std, std);
 
-            Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  (Matrix.HadamardDivision(actionsMinusMean, variance)));
-            meanDerivative = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
+            Matrix fraction = Matrix.HadamardDivision(actionsMinusMean, variance);
+            Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  fraction);
+            
+            // Chain rule, dPdMu * dCdP = dCdMu
+            Matrix actorLoss = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
             
             criticLoss /= BatchSize;
-            meanDerivative /= BatchSize;
+            actorLoss /= BatchSize;
             
             _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
-            _actorNetwork.FeedBack(meanDerivative);
+            _actorNetwork.FeedBack(actorLoss);
 
-            totalCriticLoss += criticLoss;
+            averageCriticLoss += criticLoss;
         }
-        
+
         _criticNetwork.Optimise();
         _actorNetwork.Optimise();
     }
 
     // We calculate V(s) which is called the value function. This is the discounted returns if the AI behaves as expected, and does not take
     // into account the randomness of taking actions
-    private float GetValueEstimate(Matrix state)
+    private float GetValueEstimate(Matrix state, bool cache = false)
     {
-        return _criticNetwork.FeedForward(state).GetValue(0,0);
+        return _criticNetwork.FeedForward(state, cache).GetValue(0,0);
     }
 
     private Matrix GetStandardDeviations()
     {
-        Matrix std = Matrix.FromSize(ActionSize, 1);
+        Matrix std = Matrix.FromSize(_actionSize, 1);
         float stdValue = MathF.Exp(_logStandardDeviation);
         
-        for (int i = 0; i < ActionSize; i++)
+        for (int i = 0; i < _actionSize; i++)
         {
             std.SetValue(i, 0, stdValue);
         }
@@ -196,14 +202,17 @@ public partial class PPOAgent
         return Matrix.LogNormalDensities(mean, std, actions);
     }
 
-    private Matrix GetMeanOutput(Matrix state)
+    private Matrix GetMeanOutput(Matrix state, bool cache = false)
     {
-        return _actorNetwork.FeedForward(state);
+        return _actorNetwork.FeedForward(state, cache);
     }
 
     // apparently bootstrapping values does not work practically on single workers
     private void GeneralizedAdvantageEstimate(Trajectory trajectory)
     {
+        trajectory.Advantages.Clear();
+        trajectory.Returns.Clear();
+        
         float nextGae = 0;
         float nextValue = 0;
         
@@ -256,6 +265,8 @@ public partial class PPOAgent
 
     private void MonteCarloReturn(Trajectory trajectory)
     {
+        trajectory.Returns.Clear();
+        
         float discountedReturns = 0;
         for (int i = trajectory.States.Count - 1; i >= 0; i--)
         {
@@ -283,23 +294,29 @@ public partial class PPOAgent
         Trajectory newTrajectory = trajectory.Copy();
         
         int batchCount = (newTrajectory.States.Count / BatchSize);
-        
+
         for (int i = 0; i < batchCount; i++)
         {
             Batch batch = new Batch(BatchSize);
             
             for (int j = 0; j < BatchSize; j++)
             {
-                int index = random.Next(0, newTrajectory.States.Count - 1);
-                batch.Index = index;
-                batch.States[j] = newTrajectory.States[index];
-                batch.Actions[j] = newTrajectory.Actions[index];
-                batch.Means[j] = newTrajectory.Means[index];
-                batch.Stds[j] = newTrajectory.Stds[index];
-                batch.LogProbabilities[j] = newTrajectory.LogProbabilities[index];
-                batch.Rewards[j] = newTrajectory.Rewards[index];
-                newTrajectory.States.RemoveAt(index);
+                int value = random.Next(0, newTrajectory.Indexes.Count);
+                int index = newTrajectory.Indexes[value];
+                
+                batch.Indexes[j] = index;
+                batch.States[j] = newTrajectory.States[value];
+                batch.Actions[j] = newTrajectory.Actions[value];
+                batch.LogProbabilities[j] = newTrajectory.LogProbabilities[value];
+                batch.Rewards[j] = newTrajectory.Rewards[value];
+                
+                newTrajectory.States.RemoveAt(value);
+                newTrajectory.Actions.RemoveAt(value);
+                newTrajectory.LogProbabilities.RemoveAt(value);
+                newTrajectory.Rewards.RemoveAt(value);
+                newTrajectory.Indexes.RemoveAt(value);
             }
+            
             batches.Add(batch);
         }
 
@@ -310,13 +327,13 @@ public partial class PPOAgent
     {
         foreach (var batch in batches)
         {
-            for (int j = 0; j < BatchSize; j++)
+            for (int i = 0; i < batch.States.Length; i++)
             {
-                batch.Values[j] = trajectory.Values[batch.Index];
-                batch.Returns[j] = trajectory.Returns[batch.Index];
-                batch.Advantages[j] = trajectory.Advantages[batch.Index];
+                int index = batch.Indexes[i];
+                batch.Values[i] = trajectory.Values[index];
+                batch.Returns[i] = trajectory.Returns[index];
+                batch.Advantages[i] = trajectory.Advantages[index];
             }
         }
     }
-    
 }

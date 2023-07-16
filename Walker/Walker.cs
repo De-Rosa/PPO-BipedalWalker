@@ -63,10 +63,9 @@ public class Walker
         if (_bodyParts.Body.Collided) Terminal = true;
     }
 
-    public Matrix GetActions(Matrix state, out Matrix probabilities, out Matrix mean, out Matrix std)
+    public Matrix GetActions(Matrix state, out Matrix logProbabilities)
     {
-        Matrix actions = _brain.SampleActions(state, out probabilities, out mean, out std);
-        actions = Matrix.Clip(actions, 1, -1);
+        Matrix actions = _brain.SampleActions(state, out logProbabilities, out Matrix mean, out Matrix std);
         return actions;
     }
 
@@ -155,9 +154,12 @@ public class Walker
             _bodyParts.LeftLegLowerSegment.GetLinearVelocity().X / 2f,
             _bodyParts.LeftLegUpperSegment.GetLinearVelocity().X / 2f,
             _bodyParts.RightLegLowerSegment.GetLinearVelocity().X / 2f,
-            _bodyParts.RightLegUpperSegment.GetLinearVelocity().X / 2f,
+            _bodyParts.RightLegUpperSegment.GetLinearVelocity().X / 2f
+            
+            //GetPosition().X - 125f,
+            //GetPosition().Y - 800f,
         };
-
+        
         return Matrix.FromValues(values);
     }
 

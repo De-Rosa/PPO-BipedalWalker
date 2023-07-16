@@ -24,4 +24,13 @@ public class NormalDistribution
 
         return constant * MathF.Exp(exponent);
     }
+    
+    public static float LogProbabilityDensity(float mean, float std, float action)
+    {
+        float numerator = action - mean;
+        float fraction = -(numerator * numerator) / (2 * std * std);
+        float density = fraction - MathF.Log(std) - MathF.Log(MathF.Sqrt(2 * MathF.PI));
+
+        return density;
+    }
 }

@@ -11,25 +11,23 @@ public class Trajectory
     public List<Matrix> Actions;
     public List<Matrix> LogProbabilities;
 
-    public List<Matrix> Means;
-    public List<Matrix> Stds;
-    
     public List<float> Advantages;
     public List<float> Rewards;
     public List<float> Returns;
     public List<float> Values;
+
+    public List<int> Indexes;
 
     public Trajectory()
     {
         States = new List<Matrix>();
         Actions = new List<Matrix>();
         LogProbabilities = new List<Matrix>();
-        Means = new List<Matrix>();
-        Stds = new List<Matrix>();
         Rewards = new List<float>();
         Advantages = new List<float>();
         Returns = new List<float>();
         Values = new List<float>();
+        Indexes = new List<int>();
     }
 
     public Trajectory Copy()
@@ -38,13 +36,12 @@ public class Trajectory
         {
             States = States.ToList(),
             Actions = Actions.ToList(),
-            Means = Means.ToList(),
-            Stds = Stds.ToList(),
             LogProbabilities = LogProbabilities.ToList(),
             Advantages = Advantages.ToList(),
             Rewards = Rewards.ToList(),
             Returns = Returns.ToList(),
-            Values = Values.ToList()
+            Values = Values.ToList(),
+            Indexes = Indexes.ToList()
         };
 
         return trajectory;

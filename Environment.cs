@@ -130,14 +130,12 @@ public class Environment
         Matrix state = walker.GetState();
         if (_training) _trajectories[position].States.Add(state);
         
-        Matrix actions = walker.GetActions(state, out Matrix probabilities, out Matrix mean, out Matrix std);
-        walker.TakeActions(actions);
+        Matrix actions = walker.GetActions(state, out Matrix probabilities);
+        walker.TakeActions(Matrix.Clip(actions, 1, -1));
 
         if (_training)
         {
             _trajectories[position].LogProbabilities.Add(probabilities);
-            _trajectories[position].Means.Add(mean);
-            _trajectories[position].Stds.Add(std);
             _trajectories[position].Actions.Add(actions);
         }
     }
@@ -184,6 +182,7 @@ public class Environment
     {
         _averageRewards.Add(GetAverageRewards());
         SaveData();
+        AddIndexes();
         TrainNetworks();
         ResetAll(rigidBodies);
     }
@@ -193,6 +192,17 @@ public class Environment
         foreach (var trajectory in _trajectories)
         {
             _walker.Train(trajectory);
+        }
+    }
+
+    private void AddIndexes()
+    {
+        foreach (var trajectory in _trajectories)
+        {
+            for (int i = 0; i < trajectory.States.Count; i++)
+            {
+                trajectory.Indexes.Add(i);
+            }
         }
     }
 

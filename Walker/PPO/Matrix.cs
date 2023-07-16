@@ -66,7 +66,7 @@ public class Matrix
     {
         Matrix matrix = Matrix.FromSize(height, length);
         Random random = new Random();
-        float std = MathF.Sqrt(2f / (height + length));
+        float std = MathF.Sqrt(6f / (height + length));
         
         for (int i = 0; i < height; i++)
         {
@@ -630,7 +630,7 @@ public class Matrix
             float std = stdMatrix.GetValue(i, 0);
             float action = actionMatrix.GetValue(i, 0);
 
-            newMatrix._values[i][0] = MathF.Log(NormalDistribution.ProbabilityDensity(mean, std, action));
+            newMatrix._values[i][0] = NormalDistribution.LogProbabilityDensity(mean, std, action);
         }
 
         return newMatrix;

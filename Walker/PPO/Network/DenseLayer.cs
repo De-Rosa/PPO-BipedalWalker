@@ -13,7 +13,7 @@ public class DenseLayer : Layer
 
     // Adam hyper-parameters
     // Adam paper states "Good default settings for the tested machine learning problems are alpha=0.001, beta1=0.9, beta2=0.999 and epsilon=1e−8f"
-    private const float Alpha = 0.01f; // step size
+    private const float Alpha = 0.001f; // learning rate
     private const float Beta1 = 0.9f; // 1st-order exponential decay
     private const float Beta2 = 0.999f; // 2nd-order exponential decay
     private const float Epsilon = 1e-8f; // prevent zero division

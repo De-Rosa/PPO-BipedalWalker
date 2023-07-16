@@ -37,13 +37,13 @@ public class NeuralNetwork
         _denseLayers.Add(layer);
     }
 
-    public Matrix FeedForward(Matrix matrix)
+    public Matrix FeedForward(Matrix matrix, bool cache = false)
     {
-        _cache.Clear();
-        
+        if (cache) _cache.Clear();
+
         foreach (var layer in _layers)
         {
-            _cache.Add(matrix);
+            if (cache) _cache.Add(matrix);
             matrix = layer.FeedForward(matrix);
         }
 
