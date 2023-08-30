@@ -7,8 +7,9 @@ public class NormalDistribution
     // https://stackoverflow.com/questions/218060/random-gaussian-variables
     public static float BoxMullerTransform(float mean, float std, Random random)
     {
-        float uniform1 = (float) (1 - random.NextDouble());
-        float uniform2 = (float) (1 - random.NextDouble()); 
+        float uniform1 = (float) random.NextDouble();
+        float uniform2 = (float) random.NextDouble(); 
+        if (uniform1 == 0) uniform1 = 1f; // avoid ln(0) = inf error
         float randStdNormal = MathF.Sqrt(-2f * MathF.Log(uniform1)) * MathF.Sin(2f * MathF.PI * uniform2);
         return mean + (std * randStdNormal);
     }
