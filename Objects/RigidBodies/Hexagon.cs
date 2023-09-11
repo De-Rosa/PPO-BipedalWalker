@@ -7,7 +7,7 @@ namespace Physics.Objects.RigidBodies;
 
 public class Hexagon : RigidBody, IObject
 {
-    public void Update(List<IObject> rigidBodies, List<IObject> softBodies, float deltaTime)
+    public void Update(List<RigidBody> rigidBodies, float deltaTime)
     {
         Step(rigidBodies, deltaTime);
     }

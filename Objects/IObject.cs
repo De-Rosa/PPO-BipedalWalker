@@ -6,6 +6,6 @@ namespace Physics.Objects;
 
 public interface IObject
 { 
-    public void Update(List<IObject> rigidBodies, List<IObject> softBodies, float deltaTime);
+    public void Update(List<RigidBody> rigidBodies, float deltaTime);
     public IBody GetBody();
 }

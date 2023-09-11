@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Security.Authentication.ExtendedProtection;
 using Microsoft.Xna.Framework;
 using Physics.Rendering;
 using Vector2 = System.Numerics.Vector2;

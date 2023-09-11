@@ -4,7 +4,7 @@ namespace Physics.Walker.PPO;
 
 public class NormalDistribution
 {
-    // https://stackoverflow.com/questions/218060/random-gaussian-variables
+    // https://mathworld.wolfram.com/Box-MullerTransformation.html
     public static float BoxMullerTransform(float mean, float std, Random random)
     {
         float uniform1 = (float) random.NextDouble();
@@ -13,25 +13,15 @@ public class NormalDistribution
         float randStdNormal = MathF.Sqrt(-2f * MathF.Log(uniform1)) * MathF.Sin(2f * MathF.PI * uniform2);
         return mean + (std * randStdNormal);
     }
-
-    // https://en.wikipedia.org/wiki/Normal_distribution
-    public static float ProbabilityDensity(float mean, float std, float action)
-    {
-        float constant = 1f / (std * MathF.Sqrt(2f * MathF.PI));
-
-        float exponent = (action - mean) / std;
-        exponent *= exponent;
-        exponent /= -2f;
-
-        return constant * MathF.Exp(exponent);
-    }
     
+    //https://ai.stackexchange.com/questions/40367/where-does-the-term-log-muu-mid-s-come-from
     public static float LogProbabilityDensity(float mean, float std, float action)
     {
-        float numerator = action - mean;
-        float fraction = -(numerator * numerator) / (2 * std * std);
-        float density = fraction - MathF.Log(std) - MathF.Log(MathF.Sqrt(2 * MathF.PI));
+        // -ln(std) - ln(sqrt(2pi)) - 0.5((x - mean) / std)^2
+        float fraction = (action - mean) / std;
+        fraction *= fraction;
+        fraction /= -2;
 
-        return density;
+        return -MathF.Log(std) - MathF.Log(MathF.Sqrt(2 * MathF.PI)) - fraction;
     }
 }

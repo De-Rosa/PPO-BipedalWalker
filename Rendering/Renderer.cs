@@ -5,8 +5,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Physics.Bodies;
 using Physics.Objects;
-using Physics.Objects.SoftBodies;
-using Point = Physics.Objects.SoftBodies.Point;
 
 namespace Physics.Rendering;
 
@@ -31,11 +29,10 @@ public sealed class Renderer
         _camera += vector;
     }
 
-    public void RenderRigidObject(IObject iObject)
+    public void RenderRigidObject(RigidBody body)
     {
-        RigidBody iBody = (RigidBody)iObject.GetBody();
-        List<Vector2> vectors = iBody.GetVectors();
-        Color color = iBody.IsStatic() ? Color.White : iBody.GetColor();
+        List<Vector2> vectors = body.GetVectors();
+        Color color = body.IsStatic() ? Color.White : body.GetColor();
         
         for (int i = 0; i < vectors.Count; i++)
         {
@@ -49,29 +46,6 @@ public sealed class Renderer
         {
             DrawSquare(color.Item1, 3, color.Item2, 2f);
         }
-    }
-
-    public void RenderSoftObject(IObject softObject)
-    {
-        SoftBody iBody = (SoftBody) softObject.GetBody();
-        List<Point> points = iBody.GetPoints();
-        foreach (var point in points)
-        {
-            DrawSquare(point.GetVector() + _camera, 3, Color.DarkRed, 2f);
-        }
-
-        List<Spring> springs = iBody.GetSprings();
-        foreach (var spring in springs)
-        {
-            Vector2 pointA = spring.GetPointA().GetVector();
-            Vector2 pointB = spring.GetPointB().GetVector();
-            DrawLine(pointA + _camera, pointB + _camera, Color.DarkRed);
-        }
-    }
-    
-    public void RenderWater(Water water)
-    {
-        DrawSquare(water.GetVector() + _camera, 7, Color.Cyan, 7f);
     }
 
     public void DrawLine(Vector2 point1, Vector2 point2, Color color, float thickness = 1f)

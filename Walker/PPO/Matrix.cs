@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Physics.Walker.PPO;
 
@@ -675,7 +674,7 @@ public class Matrix
         _values[height][length] = value;
     }
 
-    public string GetSize()
+    public override string ToString()
     {
         return $"{_height}x{_length}";
     }

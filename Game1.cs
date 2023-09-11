@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -11,12 +9,8 @@ using Physics.Input;
 using Physics.Materials;
 using Physics.Objects;
 using Physics.Objects.RigidBodies;
-using Physics.Objects.SoftBodies;
 using Physics.Rendering;
-using Physics.Walker.PPO;
-using Matrix = Physics.Walker.PPO.Matrix;
 using Square = Physics.Objects.RigidBodies.Square;
-using Water = Physics.Objects.SoftBodies.Water;
 
 namespace Physics;
 
@@ -27,8 +21,7 @@ public class Game1 : Game
     private SpriteBatch _spriteBatch;
     private Renderer _renderer;
     
-    private readonly List<IObject> _rigidObjects;
-    private readonly List<IObject> _softObjects;
+    private readonly List<RigidBody> _rigidObjects;
     private readonly List<Water> _water;
     private readonly Environment _environment;
 
@@ -40,15 +33,14 @@ public class Game1 : Game
     private int _entitySize = 50;
     private const int EntityCap = 200;
     
-    private IObject _dragging;
+    private RigidBody _dragging;
     private Vector2[] _stringLine;
 
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
         _input = new InputManager();
-        _rigidObjects = new List<IObject>();
-        _softObjects = new List<IObject>();
+        _rigidObjects = new List<RigidBody>();
         _water = new List<Water>();
         _stringLine = new Vector2[2];
         _dragging = null;
@@ -72,25 +64,19 @@ public class Game1 : Game
         _graphics.SynchronizeWithVerticalRetrace = false;
         IsFixedTimeStep = false;
         _graphics.ApplyChanges();
-        
-        _environment.CreateCreatures(_rigidObjects);
 
         base.Initialize();
     }
 
-    // perform action, then do physics update
     protected override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
         _input.Update();
         
         float deltaTime = (float) gameTime.ElapsedGameTime.TotalSeconds;
-        
-        _environment.UpdateWalkers();
-        _environment.TakeActions();
         StepObjects(deltaTime);
-        _environment.CheckStates(_rigidObjects);
-
+        _environment.Update(_rigidObjects);
+        
         HandleInputs(deltaTime);
     }   
 
@@ -105,21 +91,11 @@ public class Game1 : Game
     {
         _spriteBatch.Begin();
         
-        _environment.RenderWalkers(_renderer);
-
+        _environment.RenderWalker(_renderer);
+        
         foreach (var iObject in _rigidObjects)
         {
             _renderer.RenderRigidObject(iObject);
-        }
-        
-        foreach (var iObject in _softObjects)
-        {
-            _renderer.RenderSoftObject(iObject);
-        }
-        
-        foreach (var waterDrop in _water)
-        {
-            _renderer.RenderWater(waterDrop);
         }
 
         if (_stringLine != null)
@@ -136,21 +112,12 @@ public class Game1 : Game
         
         for (int i = 0; i < Iterations; i++)
         {
-            _environment.StepWalkers(deltaTime);
-
-            foreach (var rigidObject in _rigidObjects)
+            _environment.StepWalker(deltaTime);
+            
+            foreach (var body in _rigidObjects)
             {
-                rigidObject.Update(_rigidObjects, _softObjects, deltaTime);
-            };
-
-            foreach (var softObject in _softObjects)
-            {
-                softObject.Update(_rigidObjects, _softObjects, deltaTime);
-            }
-
-            foreach (var water in _water)
-            {
-                water.Update(deltaTime, _rigidObjects, _water);
+                var rigidObject = (IObject) body;
+                rigidObject.Update(_rigidObjects, deltaTime);
             };
         }
     }
@@ -200,14 +167,6 @@ public class Game1 : Game
                 _entityCount += 1;
                 _rigidObjects.Add(hexagon);
             }
-
-            if (_input.IsKeyPressed(Keys.D)) 
-            {
-                Objects.SoftBodies.Square square = Objects.SoftBodies.Square.FromSize(_squareMaterial, _input.GetMousePosition(), _entitySize / 10, _entitySize / 5);
-                square.AddAcceleration(new Vector2(0, 980));
-                _softObjects.Add(square);
-                _entityCount += 10; 
-            }
         }
         
         if (_input.IsKeyPressed(Keys.I))
@@ -233,12 +192,6 @@ public class Game1 : Game
         if (_input.IsKeyPressed(Keys.J))
         {
             _squareMaterial = new Carpet();
-        }
-
-        if (_input.IsKeyPressed(Keys.Q))
-        {
-            Console.WriteLine("Saving data.");
-            _environment.SaveData();
         }
         
         if (_input.IsKeyPressed(Keys.K))
@@ -302,12 +255,11 @@ public class Game1 : Game
         }
     }
 
-    private IObject GetDraggedObject(Vector2 mousePos)
+    private RigidBody GetDraggedObject(Vector2 mousePos)
     {
         foreach (var rigidObject in _rigidObjects)
         {
-            RigidBody iBody = (RigidBody) rigidObject;
-            if (RayCasting.IsColliding(mousePos, iBody.GetVectors()))
+            if (RayCasting.IsColliding(mousePos, rigidObject.GetVectors()))
             {
                 return rigidObject;
             }

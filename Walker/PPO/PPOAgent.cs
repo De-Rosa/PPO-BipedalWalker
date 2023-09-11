@@ -75,7 +75,6 @@ public class PPOAgent
 
     public void Train(Trajectory trajectory)
     {
-        
         for (int i = 0; i < Epochs; i++)
         {
             List<Batch> batches = CreateBatches(trajectory);
@@ -97,13 +96,14 @@ public class PPOAgent
     }
 
     
-    private void Train(Batch batch, out float averageCriticLoss)
+    private void Train(Batch batch, out float criticLoss)
     {
         _actorNetwork.Zero();
         _criticNetwork.Zero();
 
-        averageCriticLoss = 0;
-        
+        criticLoss = 0;
+        Matrix actorLoss = Matrix.FromZeroes(_actionSize, 1);
+
         Matrix std = GetStandardDeviations();
 
         // https://fse.studenttheses.ub.rug.nl/25709/1/mAI_2021_BickD.pdf
@@ -112,10 +112,9 @@ public class PPOAgent
         {
             // Derivative of the mean squared error
             // 2(V(s) - G)
-            
             // we recalculate the value estimate to get the cache values correct
             float valueEstimate = GetValueEstimate(batch.States[i], true);
-            float criticLoss = 2 * (valueEstimate - batch.Returns[i]);
+            criticLoss = -2 * (batch.Returns[i] - valueEstimate);
             
             Matrix mean = GetMeanOutput(batch.States[i], true);
             Matrix logProbabilities = GetLogProbabilities(mean, std, batch.Actions[i]);
@@ -151,16 +150,14 @@ public class PPOAgent
             Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  fraction);
             
             // Chain rule, dPdMu * dCdP = dCdMu
-            Matrix actorLoss = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
-            
-            criticLoss /= BatchSize;
-            actorLoss /= BatchSize;
-            
-            _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
-            _actorNetwork.FeedBack(actorLoss);
-
-            averageCriticLoss += criticLoss;
+            actorLoss += Matrix.HadamardProduct(meanDerivative, lClipDerivative);
         }
+        
+        criticLoss /= BatchSize;
+        actorLoss /= BatchSize;
+            
+        _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
+        _actorNetwork.FeedBack(actorLoss);
 
         _criticNetwork.Optimise();
         _actorNetwork.Optimise();
@@ -327,7 +324,7 @@ public class PPOAgent
     {
         foreach (var batch in batches)
         {
-            for (int i = 0; i < batch.States.Length; i++)
+            for (int i = 0; i < batch.Indexes.Length; i++)
             {
                 int index = batch.Indexes[i];
                 batch.Values[i] = trajectory.Values[index];

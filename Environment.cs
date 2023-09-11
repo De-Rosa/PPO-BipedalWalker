@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using Microsoft.Xna.Framework;
 using Physics.Bodies;
 using Physics.Materials;
@@ -16,15 +14,9 @@ namespace Physics;
 public class Environment
 {
     private Walker.Walker _walker;
-    private List<Walker.Walker> _simultaneousWalkers;
+    private Trajectory _trajectory;
     
-    private List<float> _rewards;
-    private List<float[]> _averageRewards;
-    private List<Trajectory> _trajectories;
-    
-    private bool _training = true;
     private int _steps = 0;
-    private int _deadCount = 0;
     
     private readonly IMaterial _obstacleMaterial = new Metal();
     private const bool RoughFloor = false;
@@ -32,87 +24,66 @@ public class Environment
     private const string CriticFileLocation = "/Users/square/Projects/Physics/SavedModels/critic.txt";
     private const string ActorFileLocation = "/Users/square/Projects/Physics/SavedModels/actor.txt";
     private const string DataFileLocation = "/Users/square/Projects/Physics/Data/data.txt";
-    private const int SimultaneousWalkerCount = 1;
     private const int DataLength = 1;
 
-    public Environment(List<IObject> rigidBodies)
+    public Environment(List<RigidBody> rigidBodies)
     {
         _walker = new Walker.Walker();
-        _simultaneousWalkers = new List<Walker.Walker>();
-        _averageRewards = new List<float[]>();
-
+        _walker.CreateCreature(rigidBodies);
         CreateFloor(rigidBodies);
-        ResetLists();
-    }
 
-    private void ResetLists()
-    {
-        _rewards = new List<float>();
-        _trajectories = new List<Trajectory>();
-
-        for (int i = 0; i < SimultaneousWalkerCount; i++)
-        {
-            _rewards.Add(0);
-            _trajectories.Add(new Trajectory());
-        }
-    }
-
-    public void UpdateWalkers()
-    {
-        _steps += 1;
-        
-        for (int i = 0; i < _simultaneousWalkers.Count; i++)
-        {
-            _simultaneousWalkers[i].Update();
-        }
-    }
-
-    public void TakeActions()
-    {
-        if (_steps == 1) return;
-
-        for (int i = 0; i < _simultaneousWalkers.Count; i++)
-        {
-            TakeAction(_simultaneousWalkers[i], i);
-        }
+        _trajectory = new Trajectory();
     }
     
-    public void CheckStates(List<IObject> rigidBodies)
+    public void Update(List<RigidBody> rigidBodies)
     {
-        if (_steps == 1) return;
+        _walker.Update();
+        _steps++;
+        float reward = CalculateReward();
 
-        for (int i = 0; i < _simultaneousWalkers.Count; i++)
+        Matrix nextState = _walker.GetState();
+
+        if (_walker.Terminal || _steps > 10000)
         {
-            CheckState(rigidBodies, _simultaneousWalkers[i], i);
+            _trajectory.Rewards.Add(reward);
+            TrainNetworks();
+            Reset(rigidBodies);
+            return;
         }
+        
+        Matrix nextAction = _walker.GetActions(nextState, out Matrix logProbabilities);
+        
+        _walker.TakeActions(Matrix.Clip(nextAction, 1f, -1f));
+        
+        _trajectory.Rewards.Add(reward);
+        _trajectory.States.Add(nextState);
+        _trajectory.Actions.Add(nextAction);
+        _trajectory.LogProbabilities.Add(logProbabilities);
+        _trajectory.Indexes.Add(_trajectory.Indexes.Count);
     }
 
-    public void StepWalkers(float deltaTime)
+    private float CalculateReward()
     {
-        foreach (var joint in _simultaneousWalkers.SelectMany(walker => walker.GetJoints()))
+        float reward = 0;
+        float distance = _walker.GetChangeInPosition().X;
+        
+        if (distance > 0) reward += distance;
+        if (_walker.Terminal || _steps > 10000) reward -= 100;
+
+        return reward;
+    }
+    
+    public void RenderWalker(Renderer renderer)
+    {
+        renderer.RenderJoint(_walker.GetJointColors());
+    }
+
+    public void StepWalker(float deltaTime)
+    {
+        foreach (var joint in _walker.GetJoints())
         {
             joint.Step(deltaTime);
         }
-    }
-
-    public void RenderWalkers(Renderer renderer)
-    {
-        foreach (var walker in _simultaneousWalkers)
-        {
-            renderer.RenderJoint(walker.GetJointColors());
-        }
-    }
-
-    public void SaveData()
-    {
-        string data = "";
-        for (int i = 0; i < _averageRewards.Count; i++)
-        {
-            if (i % DataLength != 0) continue;
-            data += _averageRewards[i].Average() + " ";
-        }
-        
-        File.WriteAllLines(DataFileLocation, new string[]{data, _averageRewards.Count.ToString()});
     }
 
     public void Save()
@@ -124,129 +95,21 @@ public class Environment
     {
         _walker.Load(CriticFileLocation, ActorFileLocation);
     }
-
-    private void TakeAction(Walker.Walker walker, int position)
-    {
-        Matrix state = walker.GetState();
-        if (_training) _trajectories[position].States.Add(state);
-        
-        Matrix actions = walker.GetActions(state, out Matrix probabilities);
-        walker.TakeActions(Matrix.Clip(actions, 1, -1));
-
-        if (_training)
-        {
-            _trajectories[position].LogProbabilities.Add(probabilities);
-            _trajectories[position].Actions.Add(actions);
-        }
-    }
-
-    private void CheckState(List<IObject> rigidBodies, Walker.Walker walker, int position)
-    {
-        GetReward(walker, position);
-
-        if (walker.GetPosition().X > 850)
-        {
-            _rewards[position] += 500;
-            TerminalState(rigidBodies, walker, position);
-            return;
-        }
-
-        if (walker.Terminal || _steps >= 10000)
-        {
-            if (walker.Terminal) _rewards[position] -= 50;
-            TerminalState(rigidBodies, walker, position);
-            return;
-        }
-        
-        if (_training) _trajectories[position].Rewards.Add(_rewards[position]);
-    }
-
-    private void TerminalState(List<IObject> rigidBodies, Walker.Walker walker, int position)
-    {
-        _deadCount += 1;
-        
-        if (_training) _trajectories[position].Rewards.Add(_rewards[position]);
-        
-        Reset(walker, rigidBodies);
-        walker.Terminal = false;
-        
-        if (_training && _deadCount == SimultaneousWalkerCount) StartTraining(rigidBodies);
-    }
-
-    private void GetReward(Walker.Walker walker, int position)
-    {
-        _rewards[position] = walker.GetChangeInPosition().X;
-    }
     
-    private void StartTraining(List<IObject> rigidBodies)
-    {
-        _averageRewards.Add(GetAverageRewards());
-        SaveData();
-        AddIndexes();
-        TrainNetworks();
-        ResetAll(rigidBodies);
-    }
-
     private void TrainNetworks()
     {
-        foreach (var trajectory in _trajectories)
-        {
-            _walker.Train(trajectory);
-        }
+        _trajectory.Rewards.RemoveAt(0);
+        _walker.Train(_trajectory);
     }
 
-    private void AddIndexes()
+    private void Reset(List<RigidBody> rigidBodies)
     {
-        foreach (var trajectory in _trajectories)
-        {
-            for (int i = 0; i < trajectory.States.Count; i++)
-            {
-                trajectory.Indexes.Add(i);
-            }
-        }
-    }
-
-    private float[] GetAverageRewards()
-    {
-        float[] totalAverage = new float[SimultaneousWalkerCount];
-        for (int i = 0; i < SimultaneousWalkerCount; i++)
-        {
-            float average = _trajectories[i].Rewards.Sum();
-            totalAverage[i] = average;
-        }
-
-        return totalAverage;
-    }
-
-    private void Reset(Walker.Walker walker, List<IObject> rigidBodies)
-    {
-        walker.Reset(rigidBodies);
-        _simultaneousWalkers.Remove(walker);
-    }
-
-    private void ResetAll(List<IObject> rigidBodies)
-    {
-        ResetLists();
-        
-        rigidBodies.Clear();
+        _trajectory = new Trajectory();
         _steps = 0;
-        _deadCount = 0;
-        
-        CreateFloor(rigidBodies);
-        CreateCreatures(rigidBodies);
+        _walker.Reset(rigidBodies);
     }
 
-    public void CreateCreatures(List<IObject> rigidBodies)
-    {
-        for (int i = 0; i < SimultaneousWalkerCount; i++)
-        {
-            Walker.Walker walker = new Walker.Walker(_walker.GetBrain(), i);
-            walker.CreateCreature(rigidBodies);
-            _simultaneousWalkers.Add(walker);
-        }
-    }
-    
-    private void CreateFloor(List<IObject> rigidBodies, bool roughFloor = false)
+    private void CreateFloor(List<RigidBody> rigidBodies, bool roughFloor = false)
     {
         if (roughFloor)
         {
@@ -263,7 +126,7 @@ public class Environment
         
     }
 
-    private void CreateRoughFloor(List<IObject> rigidBodies)
+    private void CreateRoughFloor(List<RigidBody> rigidBodies)
     {
         const int segments = 10;
         const int roughness = 100;

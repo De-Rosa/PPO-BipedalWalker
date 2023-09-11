@@ -34,7 +34,6 @@ public class RigidBody : IBody
     private float _angle;
     
     private readonly bool _isFloor;
-    private int _tag;
     public bool Collided;
 
     public RigidBody(IMaterial material, Skeleton skeleton, bool isStatic = false, bool isFloor = false)
@@ -45,8 +44,6 @@ public class RigidBody : IBody
         _friction = material.Friction;
         _associatedBodies = new List<RigidBody>();
         _color = material.Color;
-
-        _tag = -1;
         
         _isFloor = isFloor;
         Collided = false;
@@ -65,7 +62,7 @@ public class RigidBody : IBody
         }
     }
 
-    protected void Step(List<IObject> objects, float deltaTime)
+    protected void Step(List<RigidBody> objects, float deltaTime)
     {
         StepLinearVelocity(deltaTime);
         if (_isStatic) return;
@@ -74,28 +71,26 @@ public class RigidBody : IBody
         ResolveCollisions(objects);
     }
 
-    private void ResolveCollisions(List<IObject> objects)
+    private void ResolveCollisions(List<RigidBody> objects)
     {
-        foreach (var iObject in objects)
+        foreach (var body in objects)
         {
-            if (iObject == this) continue;
-            RigidBody iBody = (RigidBody) iObject.GetBody();
-            if (_associatedBodies.Contains(iBody)) continue;
-            if (_tag != iBody._tag && _tag != -1 && iBody._tag != -1) continue;
+            if (body == this) continue;
+            if (_associatedBodies.Contains(body)) continue;
             
-            if (!Skeleton.IsColliding(Skeleton, iBody.Skeleton)) continue;
+            if (!Skeleton.IsColliding(Skeleton, body.Skeleton)) continue;
             
             List<Vector2> vectorA = Skeleton.GetVectors();
-            List<Vector2> vectorB = iBody.GetVectors();
+            List<Vector2> vectorB = body.GetVectors();
             
-            if (SATCollision.IsColliding(vectorA, vectorB, Skeleton.GetCentroid(), iBody.GetCentroid(), out Vector2 normal, out float depth))
+            if (SATCollision.IsColliding(vectorA, vectorB, Skeleton.GetCentroid(), body.GetCentroid(), out Vector2 normal, out float depth))
             {
-                if (iBody._isFloor) Collided = true;
-                if (_isFloor) iBody.Collided = true;
+                if (body._isFloor) Collided = true;
+                if (_isFloor) body.Collided = true;
                 
                 List<Vector2> contactPoints = ContactPoints.GetContactPoints(vectorA, vectorB, normal);
-                MoveObjects(this, iBody, normal, depth);
-                Impulses.ResolveCollisions(this, iBody, contactPoints, normal);
+                MoveObjects(this, body, normal, depth);
+                Impulses.ResolveCollisions(this, body, contactPoints, normal);
             }
         }
     }
@@ -172,11 +167,6 @@ public class RigidBody : IBody
     public void AddAngularVelocity(float angularVelocity)
     {
         _angularVelocity += angularVelocity;
-    }
-
-    public void SetTag(int tag)
-    {
-        _tag = tag;
     }
 
     public void SmoothCorners(int count = 1)

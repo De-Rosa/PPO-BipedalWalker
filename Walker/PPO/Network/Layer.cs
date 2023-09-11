@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-
 namespace Physics.Walker.PPO;
 
 public abstract class Layer
@@ -13,6 +11,5 @@ public abstract class Layer
 public enum LayerType
 {
     DENSE,
-    ACTIVATION,
-    SOFTMAX
+    ACTIVATION
 }

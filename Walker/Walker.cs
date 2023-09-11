@@ -22,7 +22,6 @@ public class Walker
     private readonly PPOAgent _brain;
 
     public bool Terminal;
-    private int _tag;
 
     public Walker()
     {
@@ -33,7 +32,6 @@ public class Walker
         _position = new Vector2(125, 800);
         _previousPosition = _position;
         Terminal = false;
-        _tag = 0;
     }
 
     public Walker(PPOAgent brain, int tag)
@@ -45,10 +43,9 @@ public class Walker
         _position = new Vector2(125, 800);
         _previousPosition = _position;
         Terminal = false;
-        _tag = tag;
     } 
     
-    public void CreateCreature(List<IObject> rigidBodies)
+    public void CreateCreature(List<RigidBody> rigidBodies)
     {
         CreateBodies(rigidBodies);
         CreateJoints();
@@ -177,7 +174,7 @@ public class Walker
         }
     }
 
-    private void CreateBodies(List<IObject> rigidBodies)
+    private void CreateBodies(List<RigidBody> rigidBodies)
     {
         Skeleton bodySkeleton = new Skeleton();
         bodySkeleton.AddVectors(new Vector2[]
@@ -191,20 +188,14 @@ public class Walker
 
         _bodyParts.Body = Hull.FromSkeleton(_material, bodySkeleton);
         _bodyParts.Body.SetInverseInertia(0.0005f);
-        _bodyParts.Body.SetTag(_tag);
 
         _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
         _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50f), 75);
-        _bodyParts.LeftLegUpperSegment.SetTag(_tag);
-        _bodyParts.LeftLegLowerSegment.SetTag(_tag);
 
         _bodyParts.RightLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
         _bodyParts.RightLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50f), 75);
-        _bodyParts.RightLegUpperSegment.SetTag(_tag);
-        _bodyParts.RightLegLowerSegment.SetTag(_tag);
 
-
-        rigidBodies.AddRange(new IObject[] {_bodyParts.LeftLegLowerSegment, _bodyParts.LeftLegUpperSegment, _bodyParts.Body, _bodyParts.RightLegLowerSegment, _bodyParts.RightLegUpperSegment});
+        rigidBodies.AddRange(new RigidBody[] {_bodyParts.LeftLegLowerSegment, _bodyParts.LeftLegUpperSegment, _bodyParts.Body, _bodyParts.RightLegLowerSegment, _bodyParts.RightLegUpperSegment});
     }
 
     private void CreateJoints()
@@ -235,7 +226,7 @@ public class Walker
         _bodyParts.Body.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.RightLegUpperSegment});
     }
 
-    public void Reset(List<IObject> rigidBodies)
+    public void Reset(List<RigidBody> rigidBodies)
     {
         RemoveRigidObjects(rigidBodies);        
         _joints.Clear();
@@ -244,9 +235,11 @@ public class Walker
         
         _position = new Vector2(125, 800);
         _previousPosition = _position;
+        
+        CreateCreature(rigidBodies);
     }
 
-    private void RemoveRigidObjects(List<IObject> rigidBodies)
+    private void RemoveRigidObjects(List<RigidBody> rigidBodies)
     {
         rigidBodies.Remove(_bodyParts.Body);
         rigidBodies.Remove(_bodyParts.LeftLegLowerSegment);
