@@ -137,9 +137,9 @@ public class PPOAgent
             Matrix partC = Matrix.CompareInRange(ratio, 1f + Epsilon, 1f - Epsilon, 1f, 0f);
 
             Matrix lClipDerivative = partA + Matrix.HadamardProduct(partB, partC);
-            lClipDerivative *= -1f;
             lClipDerivative = Matrix.HadamardDivision(lClipDerivative, Matrix.Exponential(batch.LogProbabilities[i]));
-            
+            lClipDerivative *= -1f;
+
             // Derivative of mean with respect to the policy
             // Equation 26
             Matrix probabilities = Matrix.Exponential(logProbabilities);
