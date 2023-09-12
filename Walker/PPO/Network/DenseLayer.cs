@@ -121,7 +121,7 @@ public class DenseLayer : Layer
         
         // rms
         // variance2 = beta2 * variance1 + (1 - beta2) * gradient^2
-        _varianceGradientWeights = (Beta1 * _varianceGradientWeights) + (1 - Beta1) * Matrix.HadamardProduct(_derivativeLossWrtWeights, _derivativeLossWrtWeights);
+        _varianceGradientWeights = (Beta2 * _varianceGradientWeights) + (1 - Beta2) * Matrix.HadamardProduct(_derivativeLossWrtWeights, _derivativeLossWrtWeights);
         _varianceGradientBiases = (Beta2 * _varianceGradientBiases) + (1 - Beta2) * Matrix.HadamardProduct(_derivativeLossWrtBiases, _derivativeLossWrtBiases);
         
         // bias correction
