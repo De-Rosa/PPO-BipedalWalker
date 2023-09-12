@@ -31,7 +31,7 @@ public class DenseLayer : Layer
     public DenseLayer(int inputSize, int outputSize, int batchSize)
     {
         _weights = Matrix.FromXavier(outputSize, inputSize);
-        _biases = Matrix.FromZeroes(outputSize, 1);
+        _biases = Matrix.FromZeroes(outputSize, batchSize);
 
         _iteration = 0;
         _batchSize = batchSize;
@@ -103,8 +103,9 @@ public class DenseLayer : Layer
     // adjust weights in the direction of the gradient
     public override Matrix FeedBack(Matrix matrix, Matrix gradient)
     {
-        _derivativeLossWrtBiases += (Matrix.Flatten(gradient));
-        _derivativeLossWrtWeights += gradient * Matrix.Transpose(matrix);
+        float fraction = 1f / _batchSize;
+        _derivativeLossWrtBiases += (Matrix.Flatten(gradient)) * fraction;
+        _derivativeLossWrtWeights += gradient * Matrix.Transpose(matrix) * fraction;
         return Matrix.Transpose(_weights) * gradient;
     }
 
@@ -133,7 +134,7 @@ public class DenseLayer : Layer
         var correctedVarianceGradientBiases = (_varianceGradientBiases / (float) (1 - Math.Pow(Beta2, _iteration)));
 
         _weights = (_weights - (Alpha * Matrix.HadamardDivision(correctedMeanGradientWeights, Matrix.SquareRoot(correctedVarianceGradientWeights) + Epsilon)));
-        _biases = (_biases - (Alpha * Matrix.HadamardDivision(correctedMeanGradientBiases, Matrix.SquareRoot(correctedVarianceGradientBiases) + Epsilon)));
+        _biases = (_biases - Matrix.Expand(Alpha * Matrix.HadamardDivision(correctedMeanGradientBiases, Matrix.SquareRoot(correctedVarianceGradientBiases) + Epsilon), _batchSize));
     }
 
     public void ZeroGradients()

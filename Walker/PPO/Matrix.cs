@@ -391,7 +391,7 @@ public class Matrix
         
         return newMatrix;
     }
-    
+
     public static Matrix HadamardDivision(Matrix matrixA, Matrix matrixB)
     {
         if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, dividing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
@@ -550,6 +550,41 @@ public class Matrix
             for (int j = 0; j < matrix._length; j++)
             {
                 newMatrix._values[j][i] = matrix._values[i][j];
+            }
+        }
+
+        return newMatrix;
+    }
+    
+    public static Matrix Expand(Matrix matrix, int length)
+    {
+        Matrix newMatrix = Matrix.FromSize(matrix._height, length);
+        for (int i = 0; i < matrix._height; i++)
+        {
+            for (int j = 0; j < matrix._length; j++)
+            {
+                for (int k = 0; k < length; k++)
+                {
+                    newMatrix._values[i][j + k] = matrix._values[i][j];
+                }
+            }
+        }
+
+        return newMatrix;
+    }
+    
+    public static Matrix ExpandHeight(Matrix matrix, int height)
+    {
+        Matrix newMatrix = Matrix.FromSize(height, matrix._length);
+        
+        for (int i = 0; i < matrix._height; i++)
+        {
+            for (int j = 0; j < matrix._length; j++)
+            {
+                for (int k = 0; k < height; k++)
+                {
+                    newMatrix._values[i + k][j] = matrix._values[i][j];
+                }
             }
         }
 

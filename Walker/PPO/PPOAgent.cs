@@ -16,7 +16,7 @@ public class PPOAgent
     // Agent hyper-parameters
     private const int DenseSize = 128;
     private const int Epochs = 5;
-    private const int BatchSize = 256;
+    private const int BatchSize = 128;
     private const float Gamma = 0.95f; // Discount Factor
     private const float Lambda = 0.95f; // Smoothing Factor
     private const float Epsilon = 0.2f; // Clipping Factor
@@ -86,8 +86,8 @@ public class PPOAgent
             
             for (int j = 0; j < batches.Count; j++)
             {
-                Train(batches[j], out float valueLoss);
-                Console.WriteLine($"Epoch {i + 1}/{Epochs} | Batch: {j + 1}/{batches.Count} | Value loss: {valueLoss}");
+                Train(batches[j]);
+                Console.WriteLine($"Epoch {i + 1}/{Epochs} | Batch: {j + 1}/{batches.Count}");
             }
         }
         
@@ -96,96 +96,121 @@ public class PPOAgent
     }
 
     
-    private void Train(Batch batch, out float criticLoss)
+    private void Train(Batch batch)
     {
+        Matrix advantages = Matrix.ExpandHeight(ListToMatrix(batch.Advantages), _actionSize);
+        Matrix returns = ListToMatrix(batch.Returns);
+        Matrix actions = ListToMatrix(batch.Actions, _actionSize);
+        Matrix states = ListToMatrix(batch.States, _stateSize);
+        Matrix oldLogProbabilities = ListToMatrix(batch.LogProbabilities, _actionSize);
+        
         _actorNetwork.Zero();
         _criticNetwork.Zero();
         
-        Matrix std = GetStandardDeviations();
-        criticLoss = 0;
-        Matrix actorLoss = Matrix.FromZeroes(_actionSize, 1);
-
-        // https://fse.studenttheses.ub.rug.nl/25709/1/mAI_2021_BickD.pdf
-        // gradient accumulation
-        for (int i = 0; i < BatchSize; i++)
-        {
-            // Derivative of the mean squared error
-            // 2(V(s) - G)
-            // we recalculate the value estimate to get the cache values correct
-            float valueEstimate = GetValueEstimate(batch.States[i], true);
-            criticLoss += 2 * (valueEstimate - batch.Returns[i]);
-            
-            Matrix mean = GetMeanOutput(batch.States[i], true);
-            Matrix logProbabilities = GetLogProbabilities(mean, std, batch.Actions[i]);
-            
-            // Derivative of L Clip with respect to the policy
-            // Equation 20
-            Matrix ratio = Matrix.Exponential(logProbabilities - batch.LogProbabilities[i]);
-            
-            Matrix clippedRatio = Matrix.Clip(ratio, 1f + Epsilon, 1f - Epsilon);
-            Matrix clippedRatioAdvantage = clippedRatio * batch.Advantages[i];
-            Matrix ratioAdvantage = ratio * batch.Advantages[i];
-            
-            Matrix partA = Matrix.Compare(ratioAdvantage, clippedRatioAdvantage, 1f, 0f);
-            partA *= batch.Advantages[i];
-
-            Matrix partB = Matrix.CompareNonEquals(clippedRatioAdvantage, ratioAdvantage, 1f, 0f);
-            partB *= batch.Advantages[i];
-
-            Matrix partC = Matrix.CompareInRange(ratio, 1f + Epsilon, 1f - Epsilon, 1f, 0f);
-
-            Matrix lClipDerivative = partA + Matrix.HadamardProduct(partB, partC);
-            lClipDerivative = Matrix.HadamardDivision(lClipDerivative, Matrix.Exponential(batch.LogProbabilities[i]));
-            lClipDerivative *= -1f;
-
-            // Derivative of mean with respect to the policy
-            // Equation 26
-            Matrix probabilities = Matrix.Exponential(logProbabilities);
-            
-            Matrix actionsMinusMean = batch.Actions[i] - mean;
-            Matrix variance = Matrix.HadamardProduct(std, std);
-
-            Matrix fraction = Matrix.HadamardDivision(actionsMinusMean, variance);
-            Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  fraction);
-            
-            // Chain rule, dPdMu * dCdP = dCdMu
-            actorLoss += Matrix.HadamardProduct(meanDerivative, lClipDerivative);
-
-        }
+        Matrix std = GetStandardDeviations(expanded: true);
+        // Derivative of the mean squared error
+        // 2(V(s) - G)
+        // we recalculate the value estimate to get the cache values correct
+        Matrix valueEstimate = GetValueEstimateMatrix(states, true);
+        Matrix criticLoss = 2 * (valueEstimate - returns);
         
-        criticLoss /= BatchSize;
-        actorLoss /= BatchSize;
+        Matrix mean = GetMeanOutput(states, true);
+        Matrix logProbabilities = Matrix.Expand(GetLogProbabilities(mean, std, actions), BatchSize);
         
-        _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
+        // Derivative of L Clip with respect to the policy
+        // Equation 20
+        Matrix ratio = Matrix.Exponential(logProbabilities - oldLogProbabilities);
+        
+        Matrix clippedRatio = Matrix.Clip(ratio, 1f + Epsilon, 1f - Epsilon);
+        Matrix clippedRatioAdvantage = Matrix.HadamardProduct(clippedRatio, advantages);
+        Matrix ratioAdvantage = Matrix.HadamardProduct(ratio, advantages);
+        
+        Matrix partA = Matrix.Compare(ratioAdvantage, clippedRatioAdvantage, 1f, 0f);
+        partA = Matrix.HadamardProduct(partA, advantages);
+
+        Matrix partB = Matrix.CompareNonEquals(clippedRatioAdvantage, ratioAdvantage, 1f, 0f);
+        partB = Matrix.HadamardProduct(partB, advantages);
+
+        Matrix partC = Matrix.CompareInRange(ratio, 1f + Epsilon, 1f - Epsilon, 1f, 0f);
+
+        Matrix lClipDerivative = partA + Matrix.HadamardProduct(partB, partC);
+        lClipDerivative = Matrix.HadamardDivision(lClipDerivative, Matrix.Exponential(oldLogProbabilities));
+        lClipDerivative *= -1f;
+
+        // Derivative of mean with respect to the policy
+        // Equation 26
+        Matrix probabilities = Matrix.Exponential(logProbabilities);
+        
+        Matrix actionsMinusMean = actions - mean;
+        Matrix variance = Matrix.HadamardProduct(std, std);
+
+        Matrix fraction = Matrix.HadamardDivision(actionsMinusMean, variance);
+        Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  fraction);
+        
+        // Chain rule, dPdMu * dCdP = dCdMu
+        Matrix actorLoss = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
+
+        _criticNetwork.FeedBack(criticLoss);
         _actorNetwork.FeedBack(actorLoss);
         
         _criticNetwork.Optimise();
         _actorNetwork.Optimise();
     }
 
+    private Matrix ListToMatrix(float[] list)
+    {
+        Matrix matrix = Matrix.FromSize(1, BatchSize);
+        for (int i = 0; i < BatchSize; i++)
+        {
+            matrix.SetValue(0, i, list[i]);
+        }
+
+        return matrix;
+    }
+
+    private Matrix ListToMatrix(Matrix[] list, int matrixSize)
+    {
+        Matrix matrix = Matrix.FromSize(matrixSize, BatchSize);
+        for (int i = 0; i < matrixSize; i++)
+        {
+            for (int j = 0; j < BatchSize; j++)
+            {
+                matrix.SetValue(i, j, list[j].GetValue(i, 0));
+            }
+        }
+
+        return matrix;
+    }
+
     // We calculate V(s) which is called the value function. This is the discounted returns if the AI behaves as expected, and does not take
     // into account the randomness of taking actions
     private float GetValueEstimate(Matrix state, bool cache = false)
     {
-        return _criticNetwork.FeedForward(state, cache).GetValue(0,0);
+        Matrix expandedState = Matrix.Expand(state, BatchSize);
+        return _criticNetwork.FeedForward(expandedState, cache).GetValue(0,0);
+    }
+    
+    private Matrix GetValueEstimateMatrix(Matrix state, bool cache = false)
+    {
+        return _criticNetwork.FeedForward(state, cache);
     }
 
-    private Matrix GetStandardDeviations()
+    private Matrix GetStandardDeviations(bool expanded = false)
     {
-        Matrix std = Matrix.FromSize(_actionSize, 1);
-        float stdValue = MathF.Exp(_logStandardDeviation);
-        
-        for (int i = 0; i < _actionSize; i++)
-        {
-            std.SetValue(i, 0, stdValue);
-        }
+        Matrix std = Matrix.FromSize(1, 1);
+        std.SetValue(0,0, MathF.Exp(_logStandardDeviation));
+
+        std = Matrix.ExpandHeight(std, _actionSize);
+        if (expanded) std = Matrix.Expand(std, BatchSize);
 
         return std;
     }
 
     public Matrix SampleActions(Matrix state, out Matrix logProbabilities, out Matrix mean, out Matrix std)
     {
-        mean = GetMeanOutput(state);
+        Matrix expandedState = Matrix.Expand(state, BatchSize);
+
+        mean = GetMeanOutput(expandedState);
         std = GetStandardDeviations();
         
         Matrix actions = Matrix.SampleNormal(mean, std);
