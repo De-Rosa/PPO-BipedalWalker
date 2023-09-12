@@ -75,17 +75,17 @@ public class PPOAgent
 
     public void Train(Trajectory trajectory)
     {
+        MonteCarloReturn(trajectory);
+        CalculateValueEstimates(trajectory);
+        MonteCarloAdvantages(trajectory);
+        Normalize(trajectory.Advantages);
+
         for (int i = 0; i < Epochs; i++)
         {
             List<Batch> batches = CreateBatches(trajectory);
             
             for (int j = 0; j < batches.Count; j++)
             {
-                CalculateValueEstimates(trajectory);
-                MonteCarloReturn(trajectory);
-                MonteCarloAdvantages(trajectory);
-                UpdateBatches(batches, trajectory);
-                
                 Train(batches[j], out float valueLoss);
                 Console.WriteLine($"Epoch {i + 1}/{Epochs} | Batch: {j + 1}/{batches.Count} | Value loss: {valueLoss}");
             }
@@ -100,11 +100,10 @@ public class PPOAgent
     {
         _actorNetwork.Zero();
         _criticNetwork.Zero();
-
+        
+        Matrix std = GetStandardDeviations();
         criticLoss = 0;
         Matrix actorLoss = Matrix.FromZeroes(_actionSize, 1);
-
-        Matrix std = GetStandardDeviations();
 
         // https://fse.studenttheses.ub.rug.nl/25709/1/mAI_2021_BickD.pdf
         // gradient accumulation
@@ -114,7 +113,7 @@ public class PPOAgent
             // 2(V(s) - G)
             // we recalculate the value estimate to get the cache values correct
             float valueEstimate = GetValueEstimate(batch.States[i], true);
-            criticLoss = -2 * (batch.Returns[i] - valueEstimate);
+            criticLoss += 2 * (valueEstimate - batch.Returns[i]);
             
             Matrix mean = GetMeanOutput(batch.States[i], true);
             Matrix logProbabilities = GetLogProbabilities(mean, std, batch.Actions[i]);
@@ -151,14 +150,15 @@ public class PPOAgent
             
             // Chain rule, dPdMu * dCdP = dCdMu
             actorLoss += Matrix.HadamardProduct(meanDerivative, lClipDerivative);
+
         }
         
         criticLoss /= BatchSize;
         actorLoss /= BatchSize;
-            
+        
         _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
         _actorNetwork.FeedBack(actorLoss);
-
+        
         _criticNetwork.Optimise();
         _actorNetwork.Optimise();
     }
@@ -247,7 +247,7 @@ public class PPOAgent
 
     // https://datascience.stackexchange.com/questions/20098/why-do-we-normalize-the-discounted-rewards-when-doing-policy-gradient-reinforcem
     // https://stackoverflow.com/questions/3141692/standard-deviation-of-generic-list
-    private void Standardize(Trajectory trajectory, List<float> list)
+    private void Normalize(List<float> list)
     {
         if (list.Count == 0) return;
         float mean = list.Average();
@@ -256,7 +256,7 @@ public class PPOAgent
         for (int i = 0; i < list.Count; i++)
         {
             list[i] -= mean;
-            list[i] /= std;
+            list[i] /= std + 1e-10f;
         }
     }
 
@@ -268,10 +268,8 @@ public class PPOAgent
         for (int i = trajectory.States.Count - 1; i >= 0; i--)
         {
             discountedReturns = trajectory.Rewards[i] + (discountedReturns * Gamma);
-            trajectory.Returns.Add(discountedReturns);
+            trajectory.Returns.Insert(0, discountedReturns);
         }
-
-        trajectory.Returns.Reverse();
     }
 
     private void MonteCarloAdvantages(Trajectory trajectory)
@@ -306,12 +304,18 @@ public class PPOAgent
                 batch.Actions[j] = newTrajectory.Actions[value];
                 batch.LogProbabilities[j] = newTrajectory.LogProbabilities[value];
                 batch.Rewards[j] = newTrajectory.Rewards[value];
+                batch.Returns[j] = newTrajectory.Returns[value];
+                batch.Advantages[j] = newTrajectory.Advantages[value];
+                batch.Values[j] = newTrajectory.Values[value];
                 
                 newTrajectory.States.RemoveAt(value);
                 newTrajectory.Actions.RemoveAt(value);
                 newTrajectory.LogProbabilities.RemoveAt(value);
                 newTrajectory.Rewards.RemoveAt(value);
                 newTrajectory.Indexes.RemoveAt(value);
+                newTrajectory.Returns.RemoveAt(value);
+                newTrajectory.Advantages.RemoveAt(value);
+                newTrajectory.Values.RemoveAt(value);
             }
             
             batches.Add(batch);

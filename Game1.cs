@@ -74,8 +74,9 @@ public class Game1 : Game
         _input.Update();
         
         float deltaTime = (float) gameTime.ElapsedGameTime.TotalSeconds;
+        _environment.Update();
         StepObjects(deltaTime);
-        _environment.Update(_rigidObjects);
+        _environment.UpdateReward(_rigidObjects);
         
         HandleInputs(deltaTime);
     }   

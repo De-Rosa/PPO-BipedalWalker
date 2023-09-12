@@ -7,10 +7,10 @@ public class NormalDistribution
     // https://mathworld.wolfram.com/Box-MullerTransformation.html
     public static float BoxMullerTransform(float mean, float std, Random random)
     {
-        float uniform1 = (float) random.NextDouble();
-        float uniform2 = (float) random.NextDouble(); 
-        if (uniform1 == 0) uniform1 = 1f; // avoid ln(0) = inf error
-        float randStdNormal = MathF.Sqrt(-2f * MathF.Log(uniform1)) * MathF.Sin(2f * MathF.PI * uniform2);
+        float float1 = (float) random.NextDouble();
+        float float2 = (float) random.NextDouble(); 
+        if (float1 == 0) float1 = 1f; // avoid ln(0) = inf error
+        float randStdNormal = MathF.Sqrt(-2f * MathF.Log(float1)) * MathF.Sin(2f * MathF.PI * float2);
         return mean + (std * randStdNormal);
     }
     

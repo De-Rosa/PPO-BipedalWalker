@@ -35,42 +35,51 @@ public class Environment
         _trajectory = new Trajectory();
     }
     
-    public void Update(List<RigidBody> rigidBodies)
+    public void Update()
     {
-        _walker.Update();
         _steps++;
-        float reward = CalculateReward();
 
-        Matrix nextState = _walker.GetState();
+        if (_steps == 1) return;
+        
+        _walker.Update();
 
-        if (_walker.Terminal || _steps > 10000)
-        {
-            _trajectory.Rewards.Add(reward);
-            TrainNetworks();
-            Reset(rigidBodies);
-            return;
-        }
+        Matrix state = _walker.GetState();
+        Matrix action = _walker.GetActions(state, out Matrix logProbabilities);
         
-        Matrix nextAction = _walker.GetActions(nextState, out Matrix logProbabilities);
+        _walker.TakeActions(Matrix.Clip(action, 1f, -1f));
         
-        _walker.TakeActions(Matrix.Clip(nextAction, 1f, -1f));
-        
-        _trajectory.Rewards.Add(reward);
-        _trajectory.States.Add(nextState);
-        _trajectory.Actions.Add(nextAction);
+        _trajectory.States.Add(state);
+        _trajectory.Actions.Add(action);
         _trajectory.LogProbabilities.Add(logProbabilities);
         _trajectory.Indexes.Add(_trajectory.Indexes.Count);
     }
 
     private float CalculateReward()
     {
-        float reward = 0;
-        float distance = _walker.GetChangeInPosition().X;
-        
-        if (distance > 0) reward += distance;
-        if (_walker.Terminal || _steps > 10000) reward -= 100;
-
+        float reward = _walker.GetChangeInPosition().X;
         return reward;
+    }
+
+    public void UpdateReward(List<RigidBody> rigidBodies)
+    {
+        if (_steps == 1) return;
+
+        _walker.Update();
+
+        float reward = CalculateReward();
+        
+        if (_walker.Terminal || _steps > 10000)
+        {
+            reward -= 10;
+            _trajectory.Rewards.Add(reward);
+            
+            TrainNetworks();
+            Reset(rigidBodies);
+
+            return;
+        }
+        
+        _trajectory.Rewards.Add(reward);
     }
     
     public void RenderWalker(Renderer renderer)
@@ -98,7 +107,6 @@ public class Environment
     
     private void TrainNetworks()
     {
-        _trajectory.Rewards.RemoveAt(0);
         _walker.Train(_trajectory);
     }
 
