@@ -558,7 +558,7 @@ public class Matrix
     
     public static Matrix Reciprocal(Matrix matrix)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._length, matrix._height);
+        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
         for (int i = 0; i < matrix._height; i++)
         {
             for (int j = 0; j < matrix._length; j++)
