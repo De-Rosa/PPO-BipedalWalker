@@ -39,6 +39,11 @@ public class DenseLayer : Layer
     {
     }
 
+    public int GetOutputSize()
+    {
+        return _weights.GetHeight();
+    }
+ 
     public override Layer Clone()
     {
         return new DenseLayer

@@ -34,6 +34,8 @@ public class PPOAgent
         _actorNetwork.Load("actor");
     }
 
+    // Parses the neural network structures defined in the hyperparameter settings.
+    // Creates the neural networks based on their structure by defining a list of layers.
     private void CreateNetworks(NeuralNetwork critic, NeuralNetwork actor)
     {
         (List<Layer> criticLayers, List<DenseLayer> criticDenseLayers) =
@@ -43,12 +45,16 @@ public class PPOAgent
         
         critic.AddLayers(criticLayers, criticDenseLayers);
         actor.AddLayers(actorLayers, actorDenseLayers);
+
+        if (criticDenseLayers.Last().GetOutputSize() != 1) throw new Exception("The output size for the final dense layer of the critic is invalid (should be 1).");
+        if (actorDenseLayers.Last().GetOutputSize() != _actionSize) throw new Exception($"The output size for the final dense layer of the actor is invalid (should be {_actionSize}).");
     }
 
+    // Uses regex to split the input string into tokens which are then converted into layers.
     private (List<Layer>, List<DenseLayer>) ParseLayers(string structure)
     {
         string pattern = @"^Input( \|\d+\|| \((ReLU|TanH|LeakyReLU)\))+ Output$";
-        bool isValid = Regex.IsMatch(structure, pattern, RegexOptions.IgnoreCase);
+        bool isValid = Regex.IsMatch(structure, pattern, RegexOptions.None);
         if (!isValid) throw new Exception($"The neural network structure '{structure}' is invalid.");
 
         string cleanedStructure = Regex.Replace(structure, @"[[|()]|( Output)|(Input )", "");
@@ -81,12 +87,14 @@ public class PPOAgent
                 case "TanH":
                     layers.Add(new TanhLayer());
                     break;
+                default:
+                    throw new Exception($"Invalid activation layer type: {token}.");
             }
-        }
-        
+        } 
         return (layers, denseLayers);
     }
 
+    // Saves the current weights of the neural networks to the given file.
     public void Save()
     {
         string[] criticNetwork = _criticNetwork.Save("critic");
@@ -96,12 +104,9 @@ public class PPOAgent
         File.WriteAllLines($"{WeightsLocation}{Hyperparameters.ActorWeightFileName}.txt" , actorNetwork);
 
     }
-
-    public void Render(Renderer renderer)
-    {
-        _actorNetwork.Render(renderer);
-    }
-
+    
+    // Trains the neural network.
+    // Calculates the returns, value estimates, and advantages, before splitting it into batches and training.
     public void Train(Trajectory trajectory, Renderer renderer)
     {
         MonteCarloReturn(trajectory);
@@ -126,14 +131,14 @@ public class PPOAgent
         {
             Save();
         }
-        
-        //Console.WriteLine($"New standard deviation: {MathF.Exp(_logStandardDeviation - 0.001f)}, previously {Math.Exp(_logStandardDeviation)}");
-        //_logStandardDeviation -= 0.001f;
     }
 
-    
+    // PPO training function.
+    // Calculates the derivatives of each error and feeds it back into the neural networks.
+    // The networks are then optimized using Adam.
     private void Train(Batch batch, out float averageCriticLoss)
     {
+        // Zero the networks' gradients
         _actorNetwork.Zero();
         _criticNetwork.Zero();
         
@@ -141,19 +146,18 @@ public class PPOAgent
         averageCriticLoss = 0;
         
         // https://fse.studenttheses.ub.rug.nl/25709/1/mAI_2021_BickD.pdf
-        // gradient accumulation
+        // Performing gradient accumulation over every timestep in the batch.
         for (int i = 0; i < Hyperparameters.BatchSize; i++)
         {
-            // Derivative of the mean squared error
-            // 2(V(s) - G)
-            // we recalculate the value estimate to get the cache values correct
+            // Derivative of the mean squared error: 2(V(s) - G)
+            // We recalculate the value estimate to get cache values.
             float valueEstimate = GetValueEstimate(batch.States[i], true);
             float criticLoss = 2 * (valueEstimate - batch.Returns[i]);
             
             Matrix mean = GetMeanOutput(batch.States[i], true);
             Matrix logProbabilities = GetLogProbabilities(mean, std, batch.Actions[i]);
             
-            // Derivative of L Clip with respect to the policy
+            // Derivative of -LClip with respect to the policy.
             // Equation 20
             Matrix ratio = Matrix.Exponential(logProbabilities - batch.LogProbabilities[i]);
             
@@ -173,7 +177,7 @@ public class PPOAgent
             lClipDerivative = Matrix.HadamardDivision(lClipDerivative, Matrix.Exponential(batch.LogProbabilities[i]));
             lClipDerivative *= -1f;
 
-            // Derivative of mean with respect to the policy
+            // Derivative of mu with respect to the policy.
             // Equation 26
             Matrix probabilities = Matrix.Exponential(logProbabilities);
             
@@ -183,7 +187,7 @@ public class PPOAgent
             Matrix fraction = Matrix.HadamardDivision(actionsMinusMean, variance);
             Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  fraction);
             
-            // Chain rule, dPdMu * dCdP = dCdMu
+            // Chain rule, dPdMu * dCdP = dCdMu.
             Matrix actorLoss = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
 
             criticLoss /= Hyperparameters.BatchSize;
@@ -191,21 +195,24 @@ public class PPOAgent
 
             averageCriticLoss += criticLoss;
         
+            // Feed back the given values to calculate gradients.
             _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
             _actorNetwork.FeedBack(actorLoss);
         }
 
+        // Optimise the networks based on the gradients recieved from back propagation.
         _criticNetwork.Optimise();
         _actorNetwork.Optimise();
     }
 
     // We calculate V(s) which is called the value function. This is the discounted returns if the AI behaves as expected, and does not take
-    // into account the randomness of taking actions
+    // into account the randomness of taking actions.
     private float GetValueEstimate(Matrix state, bool cache = false)
     {
         return _criticNetwork.FeedForward(state, cache).GetValue(0,0);
     }
 
+    // Returns a matrix analogue of the float value given in the hyperparameters.
     private Matrix GetStandardDeviations()
     {
         Matrix std = Matrix.FromSize(_actionSize, 1);
@@ -219,6 +226,7 @@ public class PPOAgent
         return std;
     }
 
+    // Samples an action by feeding forward the state and calculating it's log probability using the normal PDF. 
     public Matrix SampleActions(Matrix state, out Matrix logProbabilities, out Matrix mean, out Matrix std)
     {
         mean = GetMeanOutput(state);
@@ -230,17 +238,19 @@ public class PPOAgent
         return actions;
     }
 
+    // Calculates the PDF of each action in the action matrix given a mean and standard deviation.
     private static Matrix GetLogProbabilities(Matrix mean, Matrix std, Matrix actions)
     {
         return Matrix.LogNormalDensities(mean, std, actions);
     }
 
+    // Returns the output of the actor's neural network.
     private Matrix GetMeanOutput(Matrix state, bool cache = false)
     {
         return _actorNetwork.FeedForward(state, cache);
     }
 
-    // apparently bootstrapping values does not work practically on single workers
+    // GAE, used for calculating returns and advantages.
     private void GeneralizedAdvantageEstimate(Trajectory trajectory)
     {
         trajectory.Advantages.Clear();
@@ -261,6 +271,7 @@ public class PPOAgent
         trajectory.Returns.Reverse();
     }
 
+    // Calculates the delta value required for GAE.
     private float CalculateDelta(Trajectory trajectory, int time, ref float nextValue)
     {
         float currentValue = trajectory.Values[time];
@@ -270,6 +281,7 @@ public class PPOAgent
         return delta;
     }
     
+    // Returns a matrix of value estimates for every state in the trajectory.
     private void CalculateValueEstimates(Trajectory trajectory)
     {
         trajectory.Values.Clear();
@@ -283,6 +295,7 @@ public class PPOAgent
 
     // https://datascience.stackexchange.com/questions/20098/why-do-we-normalize-the-discounted-rewards-when-doing-policy-gradient-reinforcem
     // https://stackoverflow.com/questions/3141692/standard-deviation-of-generic-list
+    // Normalizes a given list. Used for normalizing advantages.
     private void Normalize(List<float> list)
     {
         if (list.Count == 0) return;
@@ -296,6 +309,7 @@ public class PPOAgent
         }
     }
 
+    // Basic return (or reward-to-go) calculation.
     private void MonteCarloReturn(Trajectory trajectory)
     {
         trajectory.Returns.Clear();
@@ -308,6 +322,7 @@ public class PPOAgent
         }
     }
 
+    // Basic advantage calculation using (return - value).
     private void MonteCarloAdvantages(Trajectory trajectory)
     {
         trajectory.Advantages.Clear();
@@ -318,6 +333,7 @@ public class PPOAgent
         }
     }
     
+    // Creates batches for a trajectory by picking random values.
     private List<Batch> CreateBatches(Trajectory trajectory)
     {
         List<Batch> batches = new List<Batch>();
@@ -358,19 +374,5 @@ public class PPOAgent
         }
 
         return batches;
-    }
-
-    private void UpdateBatches(List<Batch> batches, Trajectory trajectory)
-    {
-        foreach (var batch in batches)
-        {
-            for (int i = 0; i < batch.Indexes.Length; i++)
-            {
-                int index = batch.Indexes[i];
-                batch.Values[i] = trajectory.Values[index];
-                batch.Returns[i] = trajectory.Returns[index];
-                batch.Advantages[i] = trajectory.Advantages[index];
-            }
-        }
     }
 }

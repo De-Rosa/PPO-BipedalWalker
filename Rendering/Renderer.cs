@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Physics.Bodies;
 using Physics.Objects;
+using Matrix = Physics.Walker.PPO.Matrix;
 
 namespace Physics.Rendering;
 
@@ -32,9 +33,9 @@ public sealed class Renderer
         _consoleRenderer.Update();
     }
 
-    public void UpdateConsole(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward)
+    public void UpdateConsole(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward, Matrix state)
     {
-        _consoleRenderer.Update(episode, timeStep, distance, averageReward, bestDistance, pastAverageReward);
+        _consoleRenderer.Update(episode, timeStep, distance, averageReward, bestDistance, pastAverageReward, state);
     }
 
     public void UpdateConsole(int epoch, int batch, int batchSize, float criticLoss)
@@ -68,7 +69,7 @@ public sealed class Renderer
         }
     }
 
-    public void RenderJoint(List<Tuple<Vector2, Color>> colors)
+    public void RenderJoints(List<Tuple<Vector2, Color>> colors)
     {
         foreach (var color in colors)
         {

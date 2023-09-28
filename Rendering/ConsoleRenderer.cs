@@ -28,9 +28,9 @@ public class ConsoleRenderer
         StartingMenu();
     }
 
-    public void Update(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward)
+    public void Update(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward, Matrix state)
     {
-        RolloutInformation(episode, timeStep, distance, averageReward, bestDistance, pastAverageReward);
+        RolloutInformation(episode, timeStep, distance, averageReward, bestDistance, pastAverageReward, state);
     }
 
     public void Update(int epoch, int batch, int batchSize, float criticLoss)
@@ -38,17 +38,26 @@ public class ConsoleRenderer
         TrainingInformation(epoch, batch, batchSize, criticLoss);
     }
 
-    private void RolloutInformation(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward)
+    private void RolloutInformation(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward, Matrix state)
     {
         Console.Clear();
 
         DrawBorder();
         Console.WriteLine($"Episode {episode}, timestep {timeStep} ({(float) (timeStep) / Hyperparameters.MaxTimesteps} % of max timesteps)");
+        DrawBorder();
         Console.WriteLine($"Current average reward: {averageReward}");
         Console.WriteLine($"Current distance: {distance}");
         DrawBorder();
         Console.WriteLine($"Previous average reward: {pastAverageReward}");
         Console.WriteLine($"Best distance: {bestDistance}");
+        DrawBorder();
+        Console.WriteLine($"Body angle: {state.GetValue(0, 0)}");
+        Console.WriteLine($"Body angular velocity: {state.GetValue(1, 0)}");
+        Console.WriteLine($"Body linear velocity: ({state.GetValue(2, 0)}, {state.GetValue(3, 0)})");
+        Console.WriteLine($"Lower left leg angle: {state.GetValue(4, 0)}");
+        Console.WriteLine($"Upper left leg angle: {state.GetValue(5, 0)}");
+        Console.WriteLine($"Lower right leg angle: {state.GetValue(6, 0)}");
+        Console.WriteLine($"Upper right leg angle: {state.GetValue(7, 0)}");
         DrawBorder();
         Console.WriteLine("Press 'x' on the GUI to exit the training loop.");
     }
@@ -204,9 +213,9 @@ public class ConsoleRenderer
     public (bool, string) ValidateNeuralNetwork(Object neuralNetwork)
     {
         string neuralNetworkStr = neuralNetwork.ToString();
-        string pattern = @"^Input( \|\d+\|| \((ReLU|TanH|LeakyReLU)\))+ Output$";
-        bool result = neuralNetworkStr != null && Regex.IsMatch(neuralNetworkStr, pattern, RegexOptions.IgnoreCase);
-        string error = result ? "" : "neural network not valid";
+        string pattern = @"^Input ((\|\d+\| )|(\((LeakyReLU|TanH|ReLU)\) ))+Output";
+        bool result = neuralNetworkStr != null && Regex.IsMatch(neuralNetworkStr, pattern, RegexOptions.None);
+        string error = result ? "" : "neural network not valid, check syntax";
         return (result, error);
     }
 

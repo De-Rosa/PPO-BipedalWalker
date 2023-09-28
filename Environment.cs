@@ -13,6 +13,8 @@ using Matrix = Physics.Walker.PPO.Matrix;
 
 namespace Physics;
 
+// Environment class holds the walker and it's environment.
+// Responsible for the update loop and the tracking of data of the walker.
 public class Environment
 {
     // Variables from Game class, for use in rendering
@@ -46,7 +48,17 @@ public class Environment
         _trajectory = new Trajectory();
     }
     
-    // 
+    // Returns information pertinent to the console during training.
+    // Output of the function is formatted as follows:
+    // (int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward)
+    public (int, int, float, float, float, float, Matrix) GetConsoleInformation()
+    {
+        float averageReward = _trajectory.Rewards.Count == 0 ? 0 : _trajectory.Rewards.Average();
+        return (_episodes, _steps, _walker.GetPosition().X, averageReward, _bestDistance, _previousAverageReward, _state);
+    }
+    
+    // Environment update function, follows training loop:
+    // Observe state -> Take Action -> Step Physics -> Receive Reward
     public void Update(float deltaTime)
     {
         _trajectory.Indexes.Add(_steps);
@@ -65,33 +77,8 @@ public class Environment
         if (terminal) TrainNetworks();
     }
 
-    public void InitialState()
-    {
-        _walker.Update();
-        _state = _walker.GetState();
-    }
-
-    public void RenderObjects()
-    {
-        _spriteBatch.Begin();
-        
-        RenderWalker();
-        
-        foreach (var iObject in _rigidBodies)
-        {
-            _renderer.RenderRigidObject(iObject);
-        }
-
-        _spriteBatch.End();
-    }
-    
-    //int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward
-    public (int, int, float, float, float, float) GetConsoleInformation()
-    {
-        float averageReward = _trajectory.Rewards.Count == 0 ? 0 : _trajectory.Rewards.Average();
-        return (_episodes, _steps, _walker.GetPosition().X, averageReward, _bestDistance, _previousAverageReward);
-    }
-
+    // Steps physics and returns a reward using a reward function.
+    // Terminal returns true when the walker's head collides with the ground or the timestep count exceeds the maximum.
     private Matrix Step(float deltaTime, out float reward, out bool terminal)
     {
         terminal = false;
@@ -109,12 +96,8 @@ public class Environment
         return _walker.GetState();
     }
 
-    private float CalculateReward()
-    {
-        if (_walker.GetChangeInPosition().X < 0) return 0;
-        return _walker.GetChangeInPosition().X;
-    }
-
+    // Physics step, updates every rigid body and joint in the environment.
+    // Is subdivided according to the Iteration setting, providing better stability.
     private void StepObjects(float deltaTime)
     {
         deltaTime /= Hyperparameters.Iterations;
@@ -133,12 +116,17 @@ public class Environment
             };
         }
     }
-
-    public void RenderWalker()
+    
+    // Reward function, provides a positive reward when the walker moves right.
+    // By including negative rewards, the AI may enter a local minimum where it attempts to kill itself as quickly as possible
+    // to not receive negative rewards.
+    private float CalculateReward()
     {
-        _renderer.RenderJoint(_walker.GetJointColors());
+        if (_walker.GetChangeInPosition().X < 0) return 0;
+        return _walker.GetChangeInPosition().X;
     }
 
+    // Trains the walker's AI, and stores information to use in the console.
     private void TrainNetworks()
     {
         _episodes++;
@@ -148,7 +136,8 @@ public class Environment
 
         Reset();
     }
-
+    
+    // Resets variables relating to each trajectory.
     private void Reset()
     {
         _trajectory = new Trajectory();
@@ -157,6 +146,35 @@ public class Environment
         InitialState();
     }
 
+    // Sets values for the initial state of the walker.
+    public void InitialState()
+    {
+        _walker.Update();
+        _state = _walker.GetState();
+    }
+    
+    // Draws the joints of the walker and their color, corresponding to their current torque.
+    public void RenderWalker()
+    {
+        _renderer.RenderJoints(_walker.GetJointColors());
+    }
+    
+    // Draw each object using the Renderer class.
+    public void RenderObjects()
+    {
+        _spriteBatch.Begin();
+        
+        RenderWalker();
+        
+        foreach (var iObject in _rigidBodies)
+        {
+            _renderer.RenderRigidObject(iObject);
+        }
+
+        _spriteBatch.End();
+    }
+    
+    // Creates a static floor rigid body.
     private void CreateFloor()
     {
         if (Hyperparameters.RoughFloor)
@@ -174,6 +192,8 @@ public class Environment
         
     }
 
+    // Creates multiple static rigid bodies which varies in height to create an uneven floor.
+    // The floor must be subdivided, since the physics engine doesn't support concave shapes.
     private void CreateRoughFloor()
     {
         const int segments = 10;
@@ -196,7 +216,7 @@ public class Environment
                 new(x, 1050), previousVector, new(x, y), new(x + movement, 1050)
             };
             
-            Hull segment = Hull.FromPositions(new Metal(), positions, isStatic: true);
+            Hull segment = Hull.FromPositions(new Metal(), positions, isStatic: true, isFloor: true);
             _rigidBodies.Add(segment);
                 
             previousVector = new Vector2(x, y);
