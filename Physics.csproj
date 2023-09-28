@@ -23,7 +23,8 @@
         <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" />
     </ItemGroup>
     <ItemGroup>
-      <Folder Include="Data" />
+      <Folder Include="Data\SavedRewards" />
+      <Folder Include="Data\Weights" />
       <Folder Include="Robot" />
     </ItemGroup>
     <Target Name="RestoreDotnetTools" BeforeTargets="Restore">

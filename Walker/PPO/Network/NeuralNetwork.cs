@@ -36,6 +36,19 @@ public class NeuralNetwork
         _denseLayers.Add(layer);
     }
 
+    public void AddLayers(List<Layer> layers, List<DenseLayer> denseLayers)
+    {
+        foreach (var layer in layers)
+        {   
+            _layers.Add(layer);
+        }
+
+        foreach (var denseLayer in denseLayers)
+        {
+            _denseLayers.Add(denseLayer);
+        }
+    }
+
     public Matrix FeedForward(Matrix matrix, bool cache = false)
     {
         if (cache) _cache.Clear();
@@ -65,11 +78,6 @@ public class NeuralNetwork
         {
             denseLayer.Adam();
         }
-
-        foreach (var denseLayer in _denseLayers)
-        {
-            denseLayer.ZeroGradients();
-        }
     }
 
     public NeuralNetwork Clone()
@@ -91,20 +99,32 @@ public class NeuralNetwork
         return newNetwork;
     }
 
-    public void Load(string[] contents)
+    public void Load(string type)
     {
-        for (int i = 0; i < contents.Length; i++)
+        if (type != "critic" && type != "actor") return;
+
+        string[] contents = type == "critic" ? Hyperparameters.CriticWeights : Hyperparameters.ActorWeights;
+        if (contents.Length < 2 || contents == Array.Empty<string>()) return;
+
+        string network = type == "critic" ? Hyperparameters.CriticNeuralNetwork : Hyperparameters.ActorNeuralNetwork;
+        if (contents[0] != network) return;
+        
+        for (int i = 0; i < contents.Length - 1; i++)
         {
-            _denseLayers[i].Load(contents[i]);
+            _denseLayers[i].Load(contents[i + 1]);
         }
     }
 
-    public string[] Save()
+    public string[] Save(string type)
     {
-        string[] contents = new string[_denseLayers.Count];
+        if (type != "critic" && type != "actor") return Array.Empty<string>();
+        
+        string[] contents = new string[_denseLayers.Count + 1];
+        contents[0] = type == "critic" ? Hyperparameters.CriticNeuralNetwork : Hyperparameters.ActorNeuralNetwork;
+        
         for (int i = 0; i < _denseLayers.Count; i++)
         {
-            contents[i] = _denseLayers[i].Save();
+            contents[i + 1] = _denseLayers[i].Save();
         }
 
         return contents;

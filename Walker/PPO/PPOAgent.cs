@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Physics.Rendering;
 using Physics.Walker.PPO.Network;
 
@@ -11,18 +12,11 @@ public class PPOAgent
 {
     private readonly NeuralNetwork _criticNetwork;
     private readonly NeuralNetwork _actorNetwork;
-    private float _logStandardDeviation = -0.5f;
-
-    // Agent hyper-parameters
-    private const int DenseSize = 128;
-    private const int Epochs = 5;
-    private const int BatchSize = 256;
-    private const float Gamma = 0.95f; // Discount Factor
-    private const float Lambda = 0.95f; // Smoothing Factor
-    private const float Epsilon = 0.2f; // Clipping Factor
 
     private readonly int _stateSize;
     private readonly int _actionSize;
+    
+    private const string WeightsLocation = "/Users/square/Projects/Physics/Data/Weights/";
 
     public PPOAgent(int stateSize, int actionSize)
     {
@@ -31,41 +25,76 @@ public class PPOAgent
         
         // Critic neural network transforms a state into a scalar value estimate for use in training the actor
         _criticNetwork = new NeuralNetwork();
-        _criticNetwork.AddLayer(new DenseLayer(stateSize, DenseSize, BatchSize));
-        _criticNetwork.AddLayer(new LeakyReLULayer());
-        _criticNetwork.AddLayer(new DenseLayer(DenseSize, 1, BatchSize));
-
         // Actor mean neural network transforms a state into an array of means to use in action sampling.
         _actorNetwork = new NeuralNetwork();
-        _actorNetwork.AddLayer(new DenseLayer(stateSize, DenseSize, BatchSize));
-        _actorNetwork.AddLayer(new LeakyReLULayer());
-        _actorNetwork.AddLayer(new DenseLayer(DenseSize, actionSize, BatchSize));
-        _actorNetwork.AddLayer(new TanhLayer());
+        
+        CreateNetworks(_criticNetwork, _actorNetwork);
+        
+        _criticNetwork.Load("critic");
+        _actorNetwork.Load("actor");
     }
 
-    public void Save(string criticFileLocation, string muFileLocation)
+    private void CreateNetworks(NeuralNetwork critic, NeuralNetwork actor)
     {
-        string[] criticNetwork = _criticNetwork.Save();
-        string[] muActorNetwork = _actorNetwork.Save();
-
-        File.WriteAllLines(criticFileLocation, criticNetwork);
-        File.WriteAllLines(muFileLocation, muActorNetwork);
-
+        (List<Layer> criticLayers, List<DenseLayer> criticDenseLayers) =
+            ParseLayers(Hyperparameters.CriticNeuralNetwork);
+        (List<Layer> actorLayers, List<DenseLayer> actorDenseLayers) =
+            ParseLayers(Hyperparameters.ActorNeuralNetwork);
+        
+        critic.AddLayers(criticLayers, criticDenseLayers);
+        actor.AddLayers(actorLayers, actorDenseLayers);
     }
 
-    public void Load(string criticFileLocation, string muFileLocation)
+    private (List<Layer>, List<DenseLayer>) ParseLayers(string structure)
     {
-        string[] criticNetwork = File.ReadAllLines(criticFileLocation);
-        string[] muNetwork = File.ReadAllLines(muFileLocation);
+        string pattern = @"^Input( \|\d+\|| \((ReLU|TanH|LeakyReLU)\))+ Output$";
+        bool isValid = Regex.IsMatch(structure, pattern, RegexOptions.IgnoreCase);
+        if (!isValid) throw new Exception($"The neural network structure '{structure}' is invalid.");
 
-        if (!File.Exists(criticFileLocation) || !File.Exists(muFileLocation))
+        string cleanedStructure = Regex.Replace(structure, @"[[|()]|( Output)|(Input )", "");
+        string[] tokens = cleanedStructure.Split(" ");
+
+        int denseInput = _stateSize;
+        List<Layer> layers = new List<Layer>();
+        List<DenseLayer> denseLayers = new List<DenseLayer>();
+        
+        foreach (var token in tokens)
         {
-            Console.WriteLine("Cannot load weights, the weights files do not exist.");
-            return;
+            Console.WriteLine(token);
+            bool isDense = Int32.TryParse(token, out int denseOutput);
+            if (isDense)
+            {
+                DenseLayer layer = new DenseLayer(denseInput, denseOutput);
+                layers.Add(layer);
+                denseLayers.Add(layer);
+                denseInput = denseOutput;
+            }
+
+            switch (token)
+            {
+                case "ReLU":
+                    layers.Add(new ReLULayer());
+                    break;
+                case "LeakyReLU":
+                    layers.Add(new LeakyReLULayer());
+                    break;
+                case "TanH":
+                    layers.Add(new TanhLayer());
+                    break;
+            }
         }
         
-        _criticNetwork.Load(criticNetwork);
-        _actorNetwork.Load(muNetwork);
+        return (layers, denseLayers);
+    }
+
+    public void Save()
+    {
+        string[] criticNetwork = _criticNetwork.Save("critic");
+        string[] actorNetwork = _actorNetwork.Save("actor");
+
+        File.WriteAllLines($"{WeightsLocation}{Hyperparameters.CriticWeightFileName}.txt" , criticNetwork);
+        File.WriteAllLines($"{WeightsLocation}{Hyperparameters.ActorWeightFileName}.txt" , actorNetwork);
+
     }
 
     public void Render(Renderer renderer)
@@ -73,22 +102,29 @@ public class PPOAgent
         _actorNetwork.Render(renderer);
     }
 
-    public void Train(Trajectory trajectory)
+    public void Train(Trajectory trajectory, Renderer renderer)
     {
         MonteCarloReturn(trajectory);
         CalculateValueEstimates(trajectory);
         MonteCarloAdvantages(trajectory);
         Normalize(trajectory.Advantages);
 
-        for (int i = 0; i < Epochs; i++)
+        renderer.AddAverageEpisodeReward(trajectory.Rewards.Average());
+        
+        for (int i = 0; i < Hyperparameters.Epochs; i++)
         {
             List<Batch> batches = CreateBatches(trajectory);
             
             for (int j = 0; j < batches.Count; j++)
             {
                 Train(batches[j], out float valueLoss);
-                Console.WriteLine($"Epoch {i + 1}/{Epochs} | Batch: {j + 1}/{batches.Count} | Value loss: {valueLoss}");
+                renderer.UpdateConsole(i, j, batches.Count, valueLoss);
             }
+        }
+
+        if (Hyperparameters.SaveWeights)
+        {
+            Save();
         }
         
         //Console.WriteLine($"New standard deviation: {MathF.Exp(_logStandardDeviation - 0.001f)}, previously {Math.Exp(_logStandardDeviation)}");
@@ -96,24 +132,23 @@ public class PPOAgent
     }
 
     
-    private void Train(Batch batch, out float criticLoss)
+    private void Train(Batch batch, out float averageCriticLoss)
     {
         _actorNetwork.Zero();
         _criticNetwork.Zero();
         
         Matrix std = GetStandardDeviations();
-        criticLoss = 0;
-        Matrix actorLoss = Matrix.FromZeroes(_actionSize, 1);
-
+        averageCriticLoss = 0;
+        
         // https://fse.studenttheses.ub.rug.nl/25709/1/mAI_2021_BickD.pdf
         // gradient accumulation
-        for (int i = 0; i < BatchSize; i++)
+        for (int i = 0; i < Hyperparameters.BatchSize; i++)
         {
             // Derivative of the mean squared error
             // 2(V(s) - G)
             // we recalculate the value estimate to get the cache values correct
             float valueEstimate = GetValueEstimate(batch.States[i], true);
-            criticLoss += 2 * (valueEstimate - batch.Returns[i]);
+            float criticLoss = 2 * (valueEstimate - batch.Returns[i]);
             
             Matrix mean = GetMeanOutput(batch.States[i], true);
             Matrix logProbabilities = GetLogProbabilities(mean, std, batch.Actions[i]);
@@ -122,7 +157,7 @@ public class PPOAgent
             // Equation 20
             Matrix ratio = Matrix.Exponential(logProbabilities - batch.LogProbabilities[i]);
             
-            Matrix clippedRatio = Matrix.Clip(ratio, 1f + Epsilon, 1f - Epsilon);
+            Matrix clippedRatio = Matrix.Clip(ratio, 1f + Hyperparameters.Epsilon, 1f - Hyperparameters.Epsilon);
             Matrix clippedRatioAdvantage = clippedRatio * batch.Advantages[i];
             Matrix ratioAdvantage = ratio * batch.Advantages[i];
             
@@ -132,7 +167,7 @@ public class PPOAgent
             Matrix partB = Matrix.CompareNonEquals(clippedRatioAdvantage, ratioAdvantage, 1f, 0f);
             partB *= batch.Advantages[i];
 
-            Matrix partC = Matrix.CompareInRange(ratio, 1f + Epsilon, 1f - Epsilon, 1f, 0f);
+            Matrix partC = Matrix.CompareInRange(ratio, 1f + Hyperparameters.Epsilon, 1f - Hyperparameters.Epsilon, 1f, 0f);
 
             Matrix lClipDerivative = partA + Matrix.HadamardProduct(partB, partC);
             lClipDerivative = Matrix.HadamardDivision(lClipDerivative, Matrix.Exponential(batch.LogProbabilities[i]));
@@ -149,16 +184,17 @@ public class PPOAgent
             Matrix meanDerivative = Matrix.HadamardProduct(probabilities,  fraction);
             
             // Chain rule, dPdMu * dCdP = dCdMu
-            actorLoss += Matrix.HadamardProduct(meanDerivative, lClipDerivative);
+            Matrix actorLoss = Matrix.HadamardProduct(meanDerivative, lClipDerivative);
 
+            criticLoss /= Hyperparameters.BatchSize;
+            actorLoss /= Hyperparameters.BatchSize;
+
+            averageCriticLoss += criticLoss;
+        
+            _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
+            _actorNetwork.FeedBack(actorLoss);
         }
-        
-        criticLoss /= BatchSize;
-        actorLoss /= BatchSize;
-        
-        _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
-        _actorNetwork.FeedBack(actorLoss);
-        
+
         _criticNetwork.Optimise();
         _actorNetwork.Optimise();
     }
@@ -173,7 +209,7 @@ public class PPOAgent
     private Matrix GetStandardDeviations()
     {
         Matrix std = Matrix.FromSize(_actionSize, 1);
-        float stdValue = MathF.Exp(_logStandardDeviation);
+        float stdValue = MathF.Exp(Hyperparameters.LogStandardDeviation);
         
         for (int i = 0; i < _actionSize; i++)
         {
@@ -216,7 +252,7 @@ public class PPOAgent
         for (int i = trajectory.States.Count - 1; i >= 0; i--)
         {
             float delta = CalculateDelta(trajectory, i, ref nextValue);
-            float GAE = delta + (Gamma * Lambda * nextGae);
+            float GAE = delta + (Hyperparameters.Gamma * Hyperparameters.Lambda * nextGae);
             trajectory.Advantages.Add(GAE);
             trajectory.Returns.Add(GAE);
         }
@@ -228,7 +264,7 @@ public class PPOAgent
     private float CalculateDelta(Trajectory trajectory, int time, ref float nextValue)
     {
         float currentValue = trajectory.Values[time];
-        float delta = trajectory.Rewards[time] + (Gamma * nextValue) - currentValue;
+        float delta = trajectory.Rewards[time] + (Hyperparameters.Gamma * nextValue) - currentValue;
         nextValue = currentValue;
 
         return delta;
@@ -267,7 +303,7 @@ public class PPOAgent
         float discountedReturns = 0;
         for (int i = trajectory.States.Count - 1; i >= 0; i--)
         {
-            discountedReturns = trajectory.Rewards[i] + (discountedReturns * Gamma);
+            discountedReturns = trajectory.Rewards[i] + (discountedReturns * Hyperparameters.Gamma);
             trajectory.Returns.Insert(0, discountedReturns);
         }
     }
@@ -288,13 +324,13 @@ public class PPOAgent
         Random random = new Random();
         Trajectory newTrajectory = trajectory.Copy();
         
-        int batchCount = (newTrajectory.States.Count / BatchSize);
+        int batchCount = (newTrajectory.States.Count / Hyperparameters.BatchSize);
 
         for (int i = 0; i < batchCount; i++)
         {
-            Batch batch = new Batch(BatchSize);
+            Batch batch = new Batch(Hyperparameters.BatchSize);
             
-            for (int j = 0; j < BatchSize; j++)
+            for (int j = 0; j < Hyperparameters.BatchSize; j++)
             {
                 int value = random.Next(0, newTrajectory.Indexes.Count);
                 int index = newTrajectory.Indexes[value];

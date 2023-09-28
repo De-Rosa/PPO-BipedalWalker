@@ -65,7 +65,7 @@ public class Matrix
     {
         Matrix matrix = Matrix.FromSize(height, length);
         Random random = new Random();
-        float std = MathF.Sqrt(6f / (height + length));
+        float std = MathF.Sqrt(2f / (height + length));
         
         for (int i = 0; i < height; i++)
         {

@@ -12,6 +12,7 @@ public sealed class Renderer
 {
     private readonly SpriteBatch _spriteBatch;
     private readonly Texture2D _lineTexture;
+    private readonly ConsoleRenderer _consoleRenderer;
 
     private Vector2 _camera;
     
@@ -20,8 +21,35 @@ public sealed class Renderer
         _spriteBatch = spriteBatch;
         _lineTexture = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
         _lineTexture.SetData(new[] { Color.White });
+
+        _consoleRenderer = new ConsoleRenderer();
         
         _camera = Vector2.Zero;
+    }
+
+    public void UpdateConsole()
+    {
+        _consoleRenderer.Update();
+    }
+
+    public void UpdateConsole(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward)
+    {
+        _consoleRenderer.Update(episode, timeStep, distance, averageReward, bestDistance, pastAverageReward);
+    }
+
+    public void UpdateConsole(int epoch, int batch, int batchSize, float criticLoss)
+    {
+        _consoleRenderer.Update(epoch, batch, batchSize, criticLoss);
+    }
+
+    public void ExitTraining()
+    {
+        _consoleRenderer.ExitTraining();
+    }
+    
+    public void AddAverageEpisodeReward(float reward)
+    {
+        _consoleRenderer.AddAverageEpisodeReward(reward);
     }
 
     public void MoveCamera(Vector2 vector)

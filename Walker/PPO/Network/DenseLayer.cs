@@ -11,13 +11,6 @@ public class DenseLayer : Layer
     private Matrix _weights;
     private Matrix _biases;
 
-    // Adam hyper-parameters
-    // Adam paper states "Good default settings for the tested machine learning problems are alpha=0.001, beta1=0.9, beta2=0.999 and epsilon=1e−8f"
-    private const float Alpha = 0.001f; // learning rate
-    private const float Beta1 = 0.9f; // 1st-order exponential decay
-    private const float Beta2 = 0.999f; // 2nd-order exponential decay
-    private const float Epsilon = 1e-8f; // prevent zero division
-
     private Matrix _derivativeLossWrtWeights; // derivative of the loss with respect to the weights
     private Matrix _derivativeLossWrtBiases; // derivative of the loss with respect to the biases
     private Matrix _meanGradientWeights;
@@ -26,15 +19,13 @@ public class DenseLayer : Layer
     private Matrix _varianceGradientBiases;
 
     private int _iteration;
-    private int _batchSize;
 
-    public DenseLayer(int inputSize, int outputSize, int batchSize)
+    public DenseLayer(int inputSize, int outputSize)
     {
         _weights = Matrix.FromXavier(outputSize, inputSize);
         _biases = Matrix.FromZeroes(outputSize, 1);
 
         _iteration = 0;
-        _batchSize = batchSize;
 
         _meanGradientWeights = Matrix.FromZeroes(outputSize, inputSize);
         _meanGradientBiases = Matrix.FromZeroes(outputSize, 1);
@@ -116,24 +107,24 @@ public class DenseLayer : Layer
         
         // momentum
         // mean2 = beta1 * mean1 + (1 - beta1) * gradient
-        _meanGradientWeights = ((1 - Beta1) * _derivativeLossWrtWeights) + (Beta1 * _meanGradientWeights);
-        _meanGradientBiases = ((1 - Beta1) * _derivativeLossWrtBiases) + (Beta1 * _meanGradientBiases);
+        _meanGradientWeights = ((1 - Hyperparameters.Beta1) * _derivativeLossWrtWeights) + (Hyperparameters.Beta1 * _meanGradientWeights);
+        _meanGradientBiases = ((1 - Hyperparameters.Beta1) * _derivativeLossWrtBiases) + (Hyperparameters.Beta1 * _meanGradientBiases);
         
         // rms
         // variance2 = beta2 * variance1 + (1 - beta2) * gradient^2
-        _varianceGradientWeights = (Beta2 * _varianceGradientWeights) + (1 - Beta2) * Matrix.HadamardProduct(_derivativeLossWrtWeights, _derivativeLossWrtWeights);
-        _varianceGradientBiases = (Beta2 * _varianceGradientBiases) + (1 - Beta2) * Matrix.HadamardProduct(_derivativeLossWrtBiases, _derivativeLossWrtBiases);
+        _varianceGradientWeights = (Hyperparameters.Beta2 * _varianceGradientWeights) + (1 - Hyperparameters.Beta2) * Matrix.HadamardProduct(_derivativeLossWrtWeights, _derivativeLossWrtWeights);
+        _varianceGradientBiases = (Hyperparameters.Beta2 * _varianceGradientBiases) + (1 - Hyperparameters.Beta2) * Matrix.HadamardProduct(_derivativeLossWrtBiases, _derivativeLossWrtBiases);
         
         // bias correction
         // mean2 = mean1 / (1 - beta1^t)
         // variance2 = variance1 / (1 - beta2^t)
-        var correctedMeanGradientWeights = (_meanGradientWeights / (float) (1 - Math.Pow(Beta1, _iteration)));
-        var correctedMeanGradientBiases = (_meanGradientBiases / (float) (1 - Math.Pow(Beta1, _iteration)));
-        var correctedVarianceGradientWeights = (_varianceGradientWeights / (float) (1 - Math.Pow(Beta2, _iteration)));
-        var correctedVarianceGradientBiases = (_varianceGradientBiases / (float) (1 - Math.Pow(Beta2, _iteration)));
+        var correctedMeanGradientWeights = (_meanGradientWeights / (float) (1 - Math.Pow(Hyperparameters.Beta1, _iteration)));
+        var correctedMeanGradientBiases = (_meanGradientBiases / (float) (1 - Math.Pow(Hyperparameters.Beta1, _iteration)));
+        var correctedVarianceGradientWeights = (_varianceGradientWeights / (float) (1 - Math.Pow(Hyperparameters.Beta2, _iteration)));
+        var correctedVarianceGradientBiases = (_varianceGradientBiases / (float) (1 - Math.Pow(Hyperparameters.Beta2, _iteration)));
 
-        _weights = (_weights - (Alpha * Matrix.HadamardDivision(correctedMeanGradientWeights, Matrix.SquareRoot(correctedVarianceGradientWeights) + Epsilon)));
-        _biases = (_biases - (Alpha * Matrix.HadamardDivision(correctedMeanGradientBiases, Matrix.SquareRoot(correctedVarianceGradientBiases) + Epsilon)));
+        _weights = (_weights - (Hyperparameters.Alpha * Matrix.HadamardDivision(correctedMeanGradientWeights, Matrix.SquareRoot(correctedVarianceGradientWeights) + Hyperparameters.AdamEpsilon)));
+        _biases = (_biases - (Hyperparameters.Alpha * Matrix.HadamardDivision(correctedMeanGradientBiases, Matrix.SquareRoot(correctedVarianceGradientBiases) + Hyperparameters.AdamEpsilon)));
     }
 
     public void ZeroGradients()

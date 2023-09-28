@@ -9,14 +9,12 @@ namespace Physics.Objects.RigidBodies;
 public class Skeleton
 {
     private List<Vector2> _vectors;
-    private List<Vector2> _previousVectors;
     private Vector2 _centroid;
     private readonly BoundingBox _boundingBox;
 
     public Skeleton()
     {
         _vectors = new List<Vector2>();
-        _previousVectors = new List<Vector2>();
         _boundingBox = new BoundingBox();
     }
 
@@ -54,7 +52,6 @@ public class Skeleton
 
     public void AddVectors(Vector2[] vectors)
     {
-        _previousVectors = new List<Vector2>(_vectors);
         _vectors.AddRange(vectors);
         _centroid = VectorMath.FindCentroid(_vectors.ToArray());
         _boundingBox.Update(_vectors);
@@ -72,21 +69,17 @@ public class Skeleton
 
     public void Move(Vector2 vector)
     {
-        _previousVectors = new List<Vector2>(_vectors);
-        
         for (int i = 0; i < _vectors.Count; i++)
         {
-            _vectors[i] = _vectors[i] * 2 - _previousVectors[i] + vector;
+            _vectors[i] += vector;
         }
-
+        
         _centroid += vector;
         _boundingBox.Update(_vectors);
     }
 
     public void Rotate(float angle)
     {
-        _previousVectors = new List<Vector2>(_vectors);
-
         for (int i = 0; i < _vectors.Count; i++)
         {
             _vectors[i] = Vector2.Transform(_vectors[i] - _centroid, Matrix.CreateRotationZ(angle)) + _centroid;
@@ -97,8 +90,6 @@ public class Skeleton
     
     public void Rotate(float angle, Vector2 point)
     {
-        _previousVectors = new List<Vector2>(_vectors);
-
         for (int i = 0; i < _vectors.Count; i++)
         {
             _vectors[i] = Vector2.Transform(_vectors[i] - point, Matrix.CreateRotationZ(angle)) + point;

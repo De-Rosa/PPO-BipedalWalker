@@ -56,7 +56,7 @@ public class Walker
     public void Update()
     {
         _previousPosition = _position;
-        _position = _joints[0].GetPointA();
+        _position = _bodyParts.Body.GetCentroid();
         if (_bodyParts.Body.Collided) Terminal = true;
     }
 
@@ -75,19 +75,9 @@ public class Walker
         }
     }
 
-    public void Train(Trajectory trajectory)
+    public void Train(Trajectory trajectory, Renderer renderer)
     {
-        _brain.Train(trajectory);
-    }
-
-    public void Save(string criticFileLocation, string muFileLocation)
-    {
-        _brain.Save(criticFileLocation, muFileLocation);
-    }
-
-    public void Load(string criticFileLocation, string muFileLocation)
-    {
-        _brain.Load(criticFileLocation, muFileLocation);
+        _brain.Train(trajectory, renderer);
     }
 
     public void Render(Renderer renderer)
@@ -153,10 +143,9 @@ public class Walker
             _bodyParts.RightLegLowerSegment.GetLinearVelocity().X / 2f,
             _bodyParts.RightLegUpperSegment.GetLinearVelocity().X / 2f
             
-            //GetPosition().X - 125f,
-            //GetPosition().Y - 800f,
+            //(GetPosition().X / 125f) - 1f,
+            //(GetPosition().Y / 800f) - 1f,
         };
-        
         return Matrix.FromValues(values);
     }
 
@@ -223,7 +212,7 @@ public class Walker
         _bodyParts.LeftLegLowerSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.RightLegUpperSegment, _bodyParts.RightLegLowerSegment, _bodyParts.Body});
         _bodyParts.RightLegUpperSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment, _bodyParts.Body});
         _bodyParts.RightLegLowerSegment.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.LeftLegLowerSegment, _bodyParts.Body});
-        _bodyParts.Body.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.RightLegUpperSegment});
+        _bodyParts.Body.AddAssociatedBodies(new RigidBody[] {_bodyParts.LeftLegUpperSegment, _bodyParts.RightLegUpperSegment, _bodyParts.LeftLegLowerSegment, _bodyParts.RightLegLowerSegment});
     }
 
     public void Reset(List<RigidBody> rigidBodies)

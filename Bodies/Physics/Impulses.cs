@@ -15,7 +15,7 @@ public class Impulses
         if (contactPoints.Count == 0) return;
         
         float restitution = Math.Max(bodyA.GetRestitution(), bodyB.GetRestitution());
-        float friction = Math.Min(bodyA.GetFriction(), bodyB.GetFriction()) * 0.5f;
+        float friction = Math.Min(bodyA.GetFriction(), bodyB.GetFriction());
         
         // midpoint between both contact points
         Vector2 contact = contactPoints.Count == 2 ? Vector2.Divide(contactPoints[0] + contactPoints[1], 2) : contactPoints[0];

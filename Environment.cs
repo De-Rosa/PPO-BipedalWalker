@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Physics.Bodies;
 using Physics.Materials;
 using Physics.Objects;
@@ -13,115 +15,153 @@ namespace Physics;
 
 public class Environment
 {
-    private Walker.Walker _walker;
+    // Variables from Game class, for use in rendering
+    private readonly SpriteBatch _spriteBatch;
+    private readonly Renderer _renderer;
+    
+    private readonly Walker.Walker _walker;
     private Trajectory _trajectory;
     
-    private int _steps = 0;
+    private List<RigidBody> _rigidBodies;
     
-    private readonly IMaterial _obstacleMaterial = new Metal();
-    private const bool RoughFloor = false;
-
-    private const string CriticFileLocation = "/Users/square/Projects/Physics/SavedModels/critic.txt";
-    private const string ActorFileLocation = "/Users/square/Projects/Physics/SavedModels/actor.txt";
-    private const string DataFileLocation = "/Users/square/Projects/Physics/Data/data.txt";
-    private const int DataLength = 1;
-
-    public Environment(List<RigidBody> rigidBodies)
+    // Training information used for console display
+    private int _steps = 0;
+    private int _episodes = 0;
+    private float _bestDistance = 0;
+    private float _previousAverageReward = 0;
+    
+    private Matrix _state;
+    
+    // Environment class houses the physics/AI loop and stores the trajectory/training information.
+    public Environment(SpriteBatch spriteBatch, Renderer renderer)
     {
+        _spriteBatch = spriteBatch;
+        _renderer = renderer;
+        _rigidBodies = new List<RigidBody>();
+        
         _walker = new Walker.Walker();
-        _walker.CreateCreature(rigidBodies);
-        CreateFloor(rigidBodies);
+        _walker.CreateCreature(_rigidBodies);
+        CreateFloor();
 
         _trajectory = new Trajectory();
     }
     
-    public void Update()
+    // 
+    public void Update(float deltaTime)
     {
+        _trajectory.Indexes.Add(_steps);
         _steps++;
-
-        if (_steps == 1) return;
         
-        _walker.Update();
-
-        Matrix state = _walker.GetState();
-        Matrix action = _walker.GetActions(state, out Matrix logProbabilities);
-        
+        _trajectory.States.Add(_state);
+        Matrix action = _walker.GetActions(_state, out Matrix logProbabilities);
         _walker.TakeActions(Matrix.Clip(action, 1f, -1f));
+
+        _state = Step(deltaTime, out float reward, out bool terminal);
         
-        _trajectory.States.Add(state);
         _trajectory.Actions.Add(action);
         _trajectory.LogProbabilities.Add(logProbabilities);
-        _trajectory.Indexes.Add(_trajectory.Indexes.Count);
+        _trajectory.Rewards.Add(reward);
+
+        if (terminal) TrainNetworks();
+    }
+
+    public void InitialState()
+    {
+        _walker.Update();
+        _state = _walker.GetState();
+    }
+
+    public void RenderObjects()
+    {
+        _spriteBatch.Begin();
+        
+        RenderWalker();
+        
+        foreach (var iObject in _rigidBodies)
+        {
+            _renderer.RenderRigidObject(iObject);
+        }
+
+        _spriteBatch.End();
+    }
+    
+    //int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward
+    public (int, int, float, float, float, float) GetConsoleInformation()
+    {
+        float averageReward = _trajectory.Rewards.Count == 0 ? 0 : _trajectory.Rewards.Average();
+        return (_episodes, _steps, _walker.GetPosition().X, averageReward, _bestDistance, _previousAverageReward);
+    }
+
+    private Matrix Step(float deltaTime, out float reward, out bool terminal)
+    {
+        terminal = false;
+
+        StepObjects(deltaTime);
+        _walker.Update();
+        
+        reward = CalculateReward();
+        if (_walker.Terminal || _steps > Hyperparameters.MaxTimesteps)
+        {
+            reward -= 100f;
+            terminal = true;
+        }
+        
+        return _walker.GetState();
     }
 
     private float CalculateReward()
     {
-        float reward = _walker.GetChangeInPosition().X;
-        return reward;
+        if (_walker.GetChangeInPosition().X < 0) return 0;
+        return _walker.GetChangeInPosition().X;
     }
 
-    public void UpdateReward(List<RigidBody> rigidBodies)
+    private void StepObjects(float deltaTime)
     {
-        if (_steps == 1) return;
-
-        _walker.Update();
-
-        float reward = CalculateReward();
+        deltaTime /= Hyperparameters.Iterations;
         
-        if (_walker.Terminal || _steps > 10000)
+        for (int i = 0; i < Hyperparameters.Iterations; i++)
         {
-            reward -= 10;
-            _trajectory.Rewards.Add(reward);
+            foreach (var joint in _walker.GetJoints())
+            {
+                joint.Step(deltaTime);
+            }
             
-            TrainNetworks();
-            Reset(rigidBodies);
-
-            return;
-        }
-        
-        _trajectory.Rewards.Add(reward);
-    }
-    
-    public void RenderWalker(Renderer renderer)
-    {
-        renderer.RenderJoint(_walker.GetJointColors());
-    }
-
-    public void StepWalker(float deltaTime)
-    {
-        foreach (var joint in _walker.GetJoints())
-        {
-            joint.Step(deltaTime);
+            foreach (var body in _rigidBodies)
+            {
+                var rigidObject = (IObject) body;
+                rigidObject.Update(_rigidBodies, deltaTime);
+            };
         }
     }
 
-    public void Save()
+    public void RenderWalker()
     {
-        _walker.Save(CriticFileLocation, ActorFileLocation);
+        _renderer.RenderJoint(_walker.GetJointColors());
     }
 
-    public void Load()
-    {
-        _walker.Load(CriticFileLocation, ActorFileLocation);
-    }
-    
     private void TrainNetworks()
     {
-        _walker.Train(_trajectory);
+        _episodes++;
+        if (_walker.GetPosition().X > _bestDistance) _bestDistance = _walker.GetPosition().X;
+        _previousAverageReward = _trajectory.Rewards.Average();
+        _walker.Train(_trajectory, _renderer);
+
+        Reset();
     }
 
-    private void Reset(List<RigidBody> rigidBodies)
+    private void Reset()
     {
         _trajectory = new Trajectory();
         _steps = 0;
-        _walker.Reset(rigidBodies);
+        _walker.Reset(_rigidBodies);
+        InitialState();
     }
 
-    private void CreateFloor(List<RigidBody> rigidBodies, bool roughFloor = false)
+    private void CreateFloor()
     {
-        if (roughFloor)
+        if (Hyperparameters.RoughFloor)
         {
-            CreateRoughFloor(rigidBodies);
+            CreateRoughFloor();
             return;
         }
         
@@ -129,12 +169,12 @@ public class Environment
             new (-50, 1050), new (-50, 900), new (1050, 900), new (1050, 1050)
         };
 
-        Hull floor = Hull.FromPositions(_obstacleMaterial, floorPositions, isStatic: true, isFloor: true);
-        rigidBodies.Add(floor);
+        Hull floor = Hull.FromPositions(new Metal(), floorPositions, isStatic: true, isFloor: true);
+        _rigidBodies.Add(floor);
         
     }
 
-    private void CreateRoughFloor(List<RigidBody> rigidBodies)
+    private void CreateRoughFloor()
     {
         const int segments = 10;
         const int roughness = 100;
@@ -156,8 +196,8 @@ public class Environment
                 new(x, 1050), previousVector, new(x, y), new(x + movement, 1050)
             };
             
-            Hull segment = Hull.FromPositions(_obstacleMaterial, positions, isStatic: true);
-            rigidBodies.Add(segment);
+            Hull segment = Hull.FromPositions(new Metal(), positions, isStatic: true);
+            _rigidBodies.Add(segment);
                 
             previousVector = new Vector2(x, y);
         }
