@@ -1,13 +1,15 @@
 using System;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Physics.Walker.PPO;
 
+// A non-static version of the hyperparameters class for use in serializing (converting to JSON).
+// We need to have a class instance to serialize it, and so this is used when saving/loading JSON files.
 [Serializable]
 public class SerializableHyperparameters
 {
+    // Settings
     public bool FastForward { get; set; }
     public bool CollectData { get; set; }
     public bool SaveWeights { get; set; }
@@ -22,6 +24,7 @@ public class SerializableHyperparameters
     
     public string CriticWeightFileName { get; set; }
     public string ActorWeightFileName { get; set; }
+    public string FilePath { get; set; }
 
     // Adam hyperparameters
     // Adam paper states "Good default settings for the tested machine learning problems are alpha=0.001, beta1=0.9, beta2=0.999 and epsilon=1e−8f"
@@ -33,6 +36,8 @@ public class SerializableHyperparameters
     // Agent hyperparameters
     public int Epochs { get; set; }
     public int BatchSize { get; set; }
+    public bool UseGAE { get; set; }
+    public bool NormalizeAdvantages { get; set; }
     
     // GAE hyperparameters
     public float Gamma { get; set; } // Discount Factor
@@ -58,17 +63,22 @@ public class SerializableHyperparameters
         AdamEpsilon = Hyperparameters.AdamEpsilon;
         Epochs = Hyperparameters.Epochs;
         BatchSize = Hyperparameters.BatchSize;
+        UseGAE = Hyperparameters.UseGAE;
+        NormalizeAdvantages = Hyperparameters.NormalizeAdvantages;
         Gamma = Hyperparameters.Gamma;
         Lambda = Hyperparameters.Lambda;
         Epsilon = Hyperparameters.Epsilon;
         LogStandardDeviation = Hyperparameters.LogStandardDeviation;
         CriticWeightFileName = Hyperparameters.CriticWeightFileName;
         ActorWeightFileName = Hyperparameters.ActorWeightFileName;
+        FilePath = Hyperparameters.FilePath;
     }
 }
 
+// Hyperparameters class, holds all settings and values which can be changed by the user.
 public class Hyperparameters
 {
+    // Settings
     public static bool FastForward = false;
     public static bool CollectData = true;
     public static bool SaveWeights = true;
@@ -82,8 +92,9 @@ public class Hyperparameters
 
     public static string CriticWeightFileName = "critic";
     public static string ActorWeightFileName = "actor";
-    
-    // not stored in configuration, used specifically for loading weights
+    public static string FilePath = "/Users/square/Projects/Physics/";
+
+    // Not stored, used specifically for loading weights.
     public static string[] CriticWeights = Array.Empty<string>();
     public static string[] ActorWeights = Array.Empty<string>();
 
@@ -97,6 +108,8 @@ public class Hyperparameters
     // Agent hyperparameters
     public static int Epochs = 5;
     public static int BatchSize = 64;
+    public static bool UseGAE = false;
+    public static bool NormalizeAdvantages = true;
     
     // GAE hyperparameters
     public static float Gamma = 0.95f; // Discount Factor
@@ -106,6 +119,7 @@ public class Hyperparameters
     public static float Epsilon = 0.3f; // Clipping Factor
     public static float LogStandardDeviation = -1f;
 
+    // Converts the hyperparameters into a JSON file.
     public static async void SerializeJson(string fileLocation)
     {
         SerializableHyperparameters hyperparameters = new SerializableHyperparameters();
@@ -115,6 +129,7 @@ public class Hyperparameters
         await createStream.DisposeAsync();
     }
     
+    // Loads the hyperparameters from a JSON file.
     public static async void DeserializeJson(string fileLocation)
     {
         using FileStream openStream = File.OpenRead(fileLocation);
@@ -131,12 +146,15 @@ public class Hyperparameters
             MaxTimesteps = hyperparameters.MaxTimesteps;
             CriticNeuralNetwork = hyperparameters.CriticNeuralNetwork;
             ActorNeuralNetwork = hyperparameters.ActorNeuralNetwork;
+            FilePath = hyperparameters.FilePath;
             Alpha = hyperparameters.Alpha;
             Beta1 = hyperparameters.Beta1;
             Beta2 = hyperparameters.Beta2;
             AdamEpsilon = hyperparameters.AdamEpsilon;
             Epochs = hyperparameters.Epochs;
             BatchSize = hyperparameters.BatchSize;
+            UseGAE = hyperparameters.UseGAE;
+            NormalizeAdvantages = hyperparameters.NormalizeAdvantages;
             Gamma = hyperparameters.Gamma;
             Lambda = hyperparameters.Lambda;
             Epsilon = hyperparameters.Epsilon;
@@ -145,9 +163,8 @@ public class Hyperparameters
             ActorWeightFileName = hyperparameters.ActorWeightFileName;
         }
     }
-
-
-    // joe moment
+    
+    // Sets a variable from its given name in a string.
     public static void ReflectionSet(string variableName, object value)
     {
         switch (variableName)
@@ -169,6 +186,12 @@ public class Hyperparameters
                 break;
             case "BatchSize":
                 BatchSize = (int) value;
+                break;
+            case "UseGAE":
+                UseGAE = (bool) value;
+                break;
+            case "NormalizeAdvantages":
+                NormalizeAdvantages = (bool) value;
                 break;
             case "Gamma":
                 Gamma = (float) value;
@@ -212,9 +235,15 @@ public class Hyperparameters
             case "ActorWeightFileName":
                 ActorNeuralNetwork = (string) value;
                 break;
+            case "FilePath":
+                FilePath = (string) value;
+                break;
+            default:
+                return;
         }
     }
     
+    // Gets the value from a variable's given string.
     public static object ReflectionGet(string variableName)
     {
         switch (variableName)
@@ -231,6 +260,10 @@ public class Hyperparameters
                 return Epochs;
             case "BatchSize":
                 return BatchSize;
+            case "UseGAE":
+                return UseGAE;
+            case "NormalizeAdvantages":
+                return NormalizeAdvantages;
             case "Gamma":
                 return Gamma;
             case "Lambda":
@@ -259,8 +292,10 @@ public class Hyperparameters
                 return ActorWeightFileName;
             case "CriticWeightFileName":
                 return CriticWeightFileName;
+            case "FilePath":
+                return FilePath;
+            default:
+                return null;
         }
-
-        return null;
     }
 }

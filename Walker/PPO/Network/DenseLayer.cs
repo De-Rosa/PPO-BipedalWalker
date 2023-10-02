@@ -1,11 +1,9 @@
 using System;
-using System.Numerics;
 
 namespace Physics.Walker.PPO;
 
-// https://analyticsindiamag.com/a-complete-understanding-of-dense-layers-in-neural-networks/
-// weight matrix * values in previous layer
-// (output, input) = (m x n) matrix
+// Dense layer class, represents two matrices - a weight and bias matrix.
+// Gradients are stored every time back propagation is performed.
 public class DenseLayer : Layer
 {
     private Matrix _weights;
@@ -35,31 +33,13 @@ public class DenseLayer : Layer
         _derivativeLossWrtBiases = Matrix.FromZeroes(outputSize, 1);
     }
 
-    private DenseLayer()
-    {
-    }
-
+    // Returns the output size of the dense layer (or the height of the weights matrix).
     public int GetOutputSize()
     {
         return _weights.GetHeight();
     }
- 
-    public override Layer Clone()
-    {
-        return new DenseLayer
-        {
-            _weights = _weights.Clone(),
-            _biases = _biases.Clone(),
-            _derivativeLossWrtWeights = _derivativeLossWrtWeights.Clone(),
-            _derivativeLossWrtBiases = _derivativeLossWrtBiases.Clone(),
-            _meanGradientWeights = _meanGradientWeights.Clone(),
-            _meanGradientBiases = _meanGradientBiases.Clone(),
-            _varianceGradientWeights = _varianceGradientWeights.Clone(),
-            _varianceGradientBiases = _varianceGradientBiases.Clone(),
-            _iteration = _iteration
-        };
-    }
-
+    
+    // Loads the weight/biases from a string taken from a file.
     public void Load(string contents)
     {
         int weightIndicator = contents.IndexOf("W", StringComparison.Ordinal) + 2;
@@ -71,6 +51,7 @@ public class DenseLayer : Layer
         _biases = Matrix.Load(_biases, biases);
     }
 
+    // Converts the weights/biases to a string representation.
     public string Save()
     {
         string line = "";
@@ -79,24 +60,15 @@ public class DenseLayer : Layer
         return line;
     }
 
-    public Matrix GetWeights()
-    {
-        return _weights;
-    }
-
-    public override LayerType GetType()
-    {
-        return LayerType.DENSE;
-    }
-
+    // Feeds a matrix forward through the dense layer.
     public override Matrix FeedForward(Matrix matrix)
     {
         return _weights * matrix + _biases;
     }
 
+    // Feeds a matrix backward through the dense layer.
+    // Function is sourced from the github link below.
     // https://github.com/b2developer/SpidermanPPO/blob/main/PPO/Assets/Scripts/NeuralNetwork2/Dense.cs
-    // used function for feed back
-    // adjust weights in the direction of the gradient
     public override Matrix FeedBack(Matrix matrix, Matrix gradient)
     {
         _derivativeLossWrtBiases += (Matrix.Flatten(gradient));
@@ -104,8 +76,9 @@ public class DenseLayer : Layer
         return Matrix.Transpose(_weights) * gradient;
     }
 
+    // Adam optimiser adjusts the weights and biases inside of the dense layer along the gradients calculated during
+    // back propagation.
     // https://optimization.cbe.cornell.edu/index.php?title=Adam
-    // https://towardsdatascience.com/how-to-implement-an-adam-optimizer-from-scratch-76e7b217f1cc
     public void Adam()
     {
         _iteration += 1;
@@ -132,6 +105,7 @@ public class DenseLayer : Layer
         _biases = (_biases - (Hyperparameters.Alpha * Matrix.HadamardDivision(correctedMeanGradientBiases, Matrix.SquareRoot(correctedVarianceGradientBiases) + Hyperparameters.AdamEpsilon)));
     }
 
+    // Zeros the gradients for the weight and biase matrices.
     public void ZeroGradients()
     {
         _derivativeLossWrtWeights.Zero();

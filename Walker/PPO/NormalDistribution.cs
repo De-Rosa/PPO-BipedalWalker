@@ -2,8 +2,12 @@ using System;
 
 namespace Physics.Walker.PPO;
 
+// Normal distribution class, contains functions involving normal distribution mathematics.
+// Used for action sampling and log probability calculation.
 public class NormalDistribution
 {
+    // The Box-Muller Transform transforms a uniform distribution into a normal distribution with mean 0 and std 1.
+    // We use this to sample a random number from a given normal distribution with mean 'mean' and std 'std'.
     // https://mathworld.wolfram.com/Box-MullerTransformation.html
     public static float BoxMullerTransform(float mean, float std, Random random)
     {
@@ -14,6 +18,8 @@ public class NormalDistribution
         return mean + (std * standardNormal);
     }
     
+    // This is the log version of the PDF for normal distributions.
+    // Used in the calculations for the PPO surrogate objective.
     //https://ai.stackexchange.com/questions/40367/where-does-the-term-log-muu-mid-s-come-from
     public static float LogProbabilityDensity(float mean, float std, float action)
     {

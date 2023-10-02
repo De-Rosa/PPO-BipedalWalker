@@ -8,6 +8,8 @@ using Physics.Walker.PPO.Network;
 
 namespace Physics.Walker.PPO;
 
+// PPO agent class, acts as the 'brain' of the walker by taking actions and learning based off of them.
+// The overall machine learning algorithm used is Proximal Policy Optimisation.
 public class PPOAgent
 {
     private readonly NeuralNetwork _criticNetwork;
@@ -16,7 +18,7 @@ public class PPOAgent
     private readonly int _stateSize;
     private readonly int _actionSize;
     
-    private const string WeightsLocation = "/Users/square/Projects/Physics/Data/Weights/";
+    private const string WeightsLocation = "Data/Weights/";
 
     public PPOAgent(int stateSize, int actionSize)
     {
@@ -75,20 +77,22 @@ public class PPOAgent
                 denseLayers.Add(layer);
                 denseInput = denseOutput;
             }
-
-            switch (token)
+            else
             {
-                case "ReLU":
-                    layers.Add(new ReLULayer());
-                    break;
-                case "LeakyReLU":
-                    layers.Add(new LeakyReLULayer());
-                    break;
-                case "TanH":
-                    layers.Add(new TanhLayer());
-                    break;
-                default:
-                    throw new Exception($"Invalid activation layer type: {token}.");
+                switch (token)
+                {
+                    case "ReLU":
+                        layers.Add(new ReLULayer());
+                        break;
+                    case "LeakyReLU":
+                        layers.Add(new LeakyReLULayer());
+                        break;
+                    case "TanH":
+                        layers.Add(new TanhLayer());
+                        break;
+                    default:
+                        throw new Exception($"Invalid activation layer type: {token}.");
+                }
             }
         } 
         return (layers, denseLayers);
@@ -100,8 +104,8 @@ public class PPOAgent
         string[] criticNetwork = _criticNetwork.Save("critic");
         string[] actorNetwork = _actorNetwork.Save("actor");
 
-        File.WriteAllLines($"{WeightsLocation}{Hyperparameters.CriticWeightFileName}.txt" , criticNetwork);
-        File.WriteAllLines($"{WeightsLocation}{Hyperparameters.ActorWeightFileName}.txt" , actorNetwork);
+        File.WriteAllLines($"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.CriticWeightFileName}.txt" , criticNetwork);
+        File.WriteAllLines($"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.ActorWeightFileName}.txt" , actorNetwork);
 
     }
     
@@ -109,10 +113,19 @@ public class PPOAgent
     // Calculates the returns, value estimates, and advantages, before splitting it into batches and training.
     public void Train(Trajectory trajectory, Renderer renderer)
     {
-        MonteCarloReturn(trajectory);
         CalculateValueEstimates(trajectory);
-        MonteCarloAdvantages(trajectory);
-        Normalize(trajectory.Advantages);
+
+        if (Hyperparameters.UseGAE)
+        {
+            GeneralizedAdvantageEstimate(trajectory);
+        }
+        else
+        {
+            MonteCarloReturn(trajectory);
+            MonteCarloAdvantages(trajectory);
+        }
+       
+        if (Hyperparameters.NormalizeAdvantages) Normalize(trajectory.Advantages);
 
         renderer.AddAverageEpisodeReward(trajectory.Rewards.Average());
         
@@ -150,7 +163,7 @@ public class PPOAgent
         for (int i = 0; i < Hyperparameters.BatchSize; i++)
         {
             // Derivative of the mean squared error: 2(V(s) - G)
-            // We recalculate the value estimate to get cache values.
+            // We re-calculate the value estimate to get cache values.
             float valueEstimate = GetValueEstimate(batch.States[i], true);
             float criticLoss = 2 * (valueEstimate - batch.Returns[i]);
             
@@ -165,13 +178,13 @@ public class PPOAgent
             Matrix clippedRatioAdvantage = clippedRatio * batch.Advantages[i];
             Matrix ratioAdvantage = ratio * batch.Advantages[i];
             
-            Matrix partA = Matrix.Compare(ratioAdvantage, clippedRatioAdvantage, 1f, 0f);
+            Matrix partA = Matrix.LessThan(ratioAdvantage, clippedRatioAdvantage, 1f, 0f);
             partA *= batch.Advantages[i];
 
-            Matrix partB = Matrix.CompareNonEquals(clippedRatioAdvantage, ratioAdvantage, 1f, 0f);
+            Matrix partB = Matrix.LessThanNotEquals(clippedRatioAdvantage, ratioAdvantage, 1f, 0f);
             partB *= batch.Advantages[i];
 
-            Matrix partC = Matrix.CompareInRange(ratio, 1f + Hyperparameters.Epsilon, 1f - Hyperparameters.Epsilon, 1f, 0f);
+            Matrix partC = Matrix.InRange(ratio, 1f + Hyperparameters.Epsilon, 1f - Hyperparameters.Epsilon, 1f, 0f);
 
             Matrix lClipDerivative = partA + Matrix.HadamardProduct(partB, partC);
             lClipDerivative = Matrix.HadamardDivision(lClipDerivative, Matrix.Exponential(batch.LogProbabilities[i]));
@@ -200,19 +213,19 @@ public class PPOAgent
             _actorNetwork.FeedBack(actorLoss);
         }
 
-        // Optimise the networks based on the gradients recieved from back propagation.
+        // Optimise the networks based on the gradients received from back propagation.
         _criticNetwork.Optimise();
         _actorNetwork.Optimise();
     }
 
-    // We calculate V(s) which is called the value function. This is the discounted returns if the AI behaves as expected, and does not take
+    // We calculate V(s) which is called the value function. This is the estimate of the return if the AI behaves as expected, and does not take
     // into account the randomness of taking actions.
     private float GetValueEstimate(Matrix state, bool cache = false)
     {
         return _criticNetwork.FeedForward(state, cache).GetValue(0,0);
     }
 
-    // Returns a matrix analogue of the float value given in the hyperparameters.
+    // Returns a matrix representation of the float value given in the hyperparameters.
     private Matrix GetStandardDeviations()
     {
         Matrix std = Matrix.FromSize(_actionSize, 1);
@@ -226,7 +239,7 @@ public class PPOAgent
         return std;
     }
 
-    // Samples an action by feeding forward the state and calculating it's log probability using the normal PDF. 
+    // Samples an action by feeding forward the state and calculating its log probability using the normal PDF. 
     public Matrix SampleActions(Matrix state, out Matrix logProbabilities, out Matrix mean, out Matrix std)
     {
         mean = GetMeanOutput(state);

@@ -9,35 +9,38 @@ namespace Physics.Rendering;
 
 public class ConsoleRenderer
 {
-    private const string ConfigurationLocation = "/Users/square/Projects/Physics/Data/Configurations/";
+    private const string ConfigurationLocation = "Data/Configurations/";
     private const string DefaultConfigName = "config";
-    private const string DataLocation = "/Users/square/Projects/Physics/Data/SavedRewards/";
+    private const string DataLocation = "Data/SavedRewards/";
     private const string DefaultDataName = "data";
-    private const string WeightsLocation = "/Users/square/Projects/Physics/Data/Weights/";
+    private const string WeightsLocation = "Data/Weights/";
     
     private List<float> _averageRewards;
-    private Environment _environment;
 
     public ConsoleRenderer()
     {
         _averageRewards = new List<float>();
     }
     
+    // Original update, opens the starting menu.
     public void Update()
     { 
         StartingMenu();
     }
 
+    // Update during an episode, renders the current information.
     public void Update(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward, Matrix state)
     {
         RolloutInformation(episode, timeStep, distance, averageReward, bestDistance, pastAverageReward, state);
     }
 
+    // Update during training, renders the current training information.
     public void Update(int epoch, int batch, int batchSize, float criticLoss)
     {
         TrainingInformation(epoch, batch, batchSize, criticLoss);
     }
 
+    // Displays the current episode information and the current state.
     private void RolloutInformation(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward, Matrix state)
     {
         Console.Clear();
@@ -62,11 +65,13 @@ public class ConsoleRenderer
         Console.WriteLine("Press 'x' on the GUI to exit the training loop.");
     }
 
+    // Adds an average reward to the list for use in data collection.
     public void AddAverageEpisodeReward(float reward)
     {
         if (Hyperparameters.CollectData) _averageRewards.Add(reward);
     }
     
+    // Displays the current training information.
     private void TrainingInformation(int epoch, int batch, int batchSize, float criticLoss)
     {
         Console.Clear();
@@ -81,6 +86,7 @@ public class ConsoleRenderer
         DrawBorder();
     }
 
+    // Exit menu.
     public void ExitTraining()
     {
         Option[] options = new[]
@@ -92,6 +98,7 @@ public class ConsoleRenderer
         RenderMenu(options, "End of training", ExitTraining, hasText: !Hyperparameters.CollectData);
     }
 
+    // Menu for saving data.
     private void SaveData()
     {
         Console.Clear();
@@ -110,11 +117,11 @@ public class ConsoleRenderer
 
         if (fileName == "")
         {
-            fileLocation = $"{DataLocation}{DefaultDataName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{DataLocation}{DefaultDataName}.txt";
         }
         else
         {
-            fileLocation = $"{DataLocation}{fileName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{DataLocation}{fileName}.txt";
         }
         
         CreateDataFile(fileLocation);
@@ -122,6 +129,7 @@ public class ConsoleRenderer
         ExitTraining();
     }
 
+    // Creates a data file from the average rewards list.
     private async void CreateDataFile(string filePath)
     {
         string data = string.Join(" ", _averageRewards);
@@ -129,11 +137,12 @@ public class ConsoleRenderer
         await File.WriteAllTextAsync(filePath, data);
     }
 
+    // Starting menu.
     private void StartingMenu()
     {
         Option[] options = new[]
         {
-            new Function(StartTraining, "Start training"),
+            new Function(Clear, "Start training"),
             new Function(HyperparameterMenu, "Edit hyperparameters"),
             new Function(SettingsMenu, "Edit settings"),
             new Function(LoadConfiguration, "Load configuration"),
@@ -145,12 +154,15 @@ public class ConsoleRenderer
         RenderMenu(options, "Start-up", StartingMenu);
     }
     
+    // Hyperparameter sub-menu.
     private void HyperparameterMenu()
     {
         Option[] options = new[]
         {
             (Option) new Function(EditNeuralNetworks, "Edit neural networks"),
             new Function(EditConstants, "Edit hyperparameter constants"),
+            new Variable(Hyperparameters.UseGAE, "UseGAE", "Toggle Generalized Advantage Estimate", HyperparameterMenu),
+            new Variable(Hyperparameters.NormalizeAdvantages, "NormalizeAdvantages", "Toggle normalizing advantages", HyperparameterMenu),
             new Variable(Hyperparameters.LogStandardDeviation, "LogStandardDeviation", "Edit standard deviation", HyperparameterMenu, validationFunction: ValidateFloat),
             new Variable(Hyperparameters.BatchSize, "BatchSize", "Edit batch size", HyperparameterMenu, validationFunction: ValidateIntPositive),
             new Variable(Hyperparameters.Epochs, "Epochs", "Edit epoch count", HyperparameterMenu, validationFunction: ValidateIntPositive),
@@ -159,34 +171,8 @@ public class ConsoleRenderer
         
         RenderMenu(options, "Hyperparameters", HyperparameterMenu);
     }
-    
-    private void StartTraining()
-    {
-        Clear();
-    }
-    
-    private void RenderMenu(Option[] options, string title, Action menu, bool hasText = false)
-    {
-        Clear();
-        DrawBorder(title);
-        DrawOptions(options);
-        DrawBorder();
 
-        if (hasText)
-        {
-            List<Option> optionsWithoutText = new List<Option>();
-            for (int i = 0; i < options.Length; i++)
-            {
-                if (options[i].Type != OptionType.TEXT) optionsWithoutText.Add(options[i]);
-            }
-
-            options = optionsWithoutText.ToArray();
-        }
-        
-        
-        GetInput(options, menu);
-    }
-    
+    // Neural network editing sub-menu.
     private void EditNeuralNetworks()
     {
         Option[] options = new[]
@@ -210,38 +196,7 @@ public class ConsoleRenderer
         RenderMenu(options, "Neural Networks", EditNeuralNetworks, hasText: true);
     }
 
-    public (bool, string) ValidateNeuralNetwork(Object neuralNetwork)
-    {
-        string neuralNetworkStr = neuralNetwork.ToString();
-        string pattern = @"^Input ((\|\d+\| )|(\((LeakyReLU|TanH|ReLU)\) ))+Output";
-        bool result = neuralNetworkStr != null && Regex.IsMatch(neuralNetworkStr, pattern, RegexOptions.None);
-        string error = result ? "" : "neural network not valid, check syntax";
-        return (result, error);
-    }
-
-    public (bool, string) ValidateIntPositive(string variable)
-    {
-        bool isInt = int.TryParse(variable, out int variableInt);
-        bool result = !(variableInt <= 0 || variableInt > 99999) && isInt;
-        string error = result ? "" : $"value must be positive, an integer, and less than 100000 (inputted {variable})";
-        return (result, error);
-    }
-
-    public (bool, string) ValidateFloatPositive(string variable)
-    {
-        bool isFloat = float.TryParse(variable, out float variableFloat);
-        bool result = !(variableFloat <= 0f || variableFloat > 99999f) && isFloat;
-        string error = result ? "" : $"value must be positive, a float, and less than 100000 (inputted {variable})";
-        return (result, error);
-    }
-
-    public (bool, string) ValidateFloat(string variable)
-    {
-        bool isFloat = float.TryParse(variable, out float variableFloat);
-        string error = isFloat ? "" : $"value must be a float (inputted {variable})";
-        return (isFloat, error);
-    }
-
+    // Constant variables editing sub-menu.
     private void EditConstants()
     {
         Option[] options = new[]
@@ -262,6 +217,7 @@ public class ConsoleRenderer
         RenderMenu(options, "Constants", EditConstants, hasText: true);
     }
 
+    // Settings sub-menu.
     private void SettingsMenu()
     {
         Option[] options = new[]
@@ -272,6 +228,7 @@ public class ConsoleRenderer
             new Variable(Hyperparameters.SaveWeights, "SaveWeights", "Toggle weights saving", SettingsMenu),
             new Variable(Hyperparameters.CriticWeightFileName, "CriticWeightFileName", "Change critic weights file name", SettingsMenu, validationFunction: ValidateFileName),
             new Variable(Hyperparameters.ActorWeightFileName, "ActorWeightFileName", "Change actor weights file name", SettingsMenu, validationFunction: ValidateFileName),
+            new Variable(Hyperparameters.FilePath, "FilePath", "Change file path", SettingsMenu),
             new Variable(Hyperparameters.RoughFloor, "RoughFloor", "Toggle rough floor", SettingsMenu),
             new Variable(Hyperparameters.MaxTimesteps, "MaxTimesteps", "Edit maximum timestep count", SettingsMenu, validationFunction: ValidateIntPositive),
             new Function(StartingMenu, "Back"),
@@ -279,49 +236,15 @@ public class ConsoleRenderer
         
         RenderMenu(options, "Settings", SettingsMenu);
     }
-    
-    private void LoadConfiguration()
+
+    // Exits the program.
+    private void Exit()
     {
-        Console.Clear();
-        DrawBorder("Load configuration");
-        Console.WriteLine("Enter the file name of the configuration to be loaded (leave blank for default, 'x' to exit):");
-        DrawBorder();
-        
-        string fileName = Console.ReadLine();
-        string fileLocation;
-        
-        (bool result, string error) = ValidateFileName(fileName);
-        if (!result)
-        {
-            LoadConfiguration();
-            return;
-        }
-
-        if (fileName != null && fileName.ToLower() == "x")
-        {
-            StartingMenu();
-            return;
-        }
-
-        if (fileName == "")
-        {
-            fileLocation = $"{ConfigurationLocation}{DefaultConfigName}.json";
-        }
-        else
-        {
-            fileLocation = $"{ConfigurationLocation}{fileName}.json";
-        }
-
-        if (!File.Exists(fileLocation))
-        {
-            LoadConfiguration();
-            return;
-        }
-        
-        Hyperparameters.DeserializeJson(fileLocation);
-        StartingMenu();
+        Clear();
+        System.Environment.Exit(0);
     }
     
+    // Neural network weight loading sub-menu.
     private void LoadNeuralNetworks()
     {
         Option[] options = new[]
@@ -334,6 +257,7 @@ public class ConsoleRenderer
         RenderMenu(options, "Load neural networks", LoadNeuralNetworks);
     }
 
+    // Loads critic network weights from a given file.
     private void LoadCriticNetwork()
     {
         Console.Clear();
@@ -360,11 +284,11 @@ public class ConsoleRenderer
 
         if (fileName == "")
         {
-            fileLocation = $"{WeightsLocation}{Hyperparameters.CriticWeightFileName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.CriticWeightFileName}.txt";
         }
         else
         {
-            fileLocation = $"{WeightsLocation}{fileName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{fileName}.txt";
         }
 
         if (!File.Exists(fileLocation))
@@ -392,6 +316,7 @@ public class ConsoleRenderer
         LoadNeuralNetworks();
     }
     
+    // Loads actor network weights from a given file.
     private void LoadActorNetwork()
     {
         Console.Clear();
@@ -418,11 +343,11 @@ public class ConsoleRenderer
         
         if (fileName == "")
         {
-            fileLocation = $"{WeightsLocation}{Hyperparameters.ActorWeightFileName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.ActorWeightFileName}.txt";
         }
         else
         {
-            fileLocation = $"{WeightsLocation}{fileName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{fileName}.txt";
         }
 
         if (!File.Exists(fileLocation))
@@ -450,6 +375,7 @@ public class ConsoleRenderer
         LoadNeuralNetworks();
     }
 
+    // Saves the hyperparameters into a JSON file.
     private void SaveConfiguration()
     {
         Console.Clear();
@@ -475,17 +401,61 @@ public class ConsoleRenderer
         
         if (fileName == "") 
         {
-            fileLocation = $"{ConfigurationLocation}{DefaultConfigName}.json";
+            fileLocation = $"{Hyperparameters.FilePath}{ConfigurationLocation}{DefaultConfigName}.json";
         }
         else
         {
-            fileLocation = $"{ConfigurationLocation}{fileName}.json";
+            fileLocation = $"{Hyperparameters.FilePath}{ConfigurationLocation}{fileName}.json";
         }
 
         Hyperparameters.SerializeJson(fileLocation);
         StartingMenu();
     }
+    
+    // Loads a JSON configuration file.
+    private void LoadConfiguration()
+    {
+        Console.Clear();
+        DrawBorder("Load configuration");
+        Console.WriteLine("Enter the file name of the configuration to be loaded (leave blank for default, 'x' to exit):");
+        DrawBorder();
+        
+        string fileName = Console.ReadLine();
+        string fileLocation;
+        
+        (bool result, string error) = ValidateFileName(fileName);
+        if (!result)
+        {
+            LoadConfiguration();
+            return;
+        }
 
+        if (fileName != null && fileName.ToLower() == "x")
+        {
+            StartingMenu();
+            return;
+        }
+
+        if (fileName == "")
+        {
+            fileLocation = $"{Hyperparameters.FilePath}{ConfigurationLocation}{DefaultConfigName}.json";
+        }
+        else
+        {
+            fileLocation = $"{Hyperparameters.FilePath}{ConfigurationLocation}{fileName}.json";
+        }
+
+        if (!File.Exists(fileLocation))
+        {
+            LoadConfiguration();
+            return;
+        }
+        
+        Hyperparameters.DeserializeJson(fileLocation);
+        StartingMenu();
+    }
+
+    // Validates an input for files.
     private (bool, string) ValidateFileName(string fileName)
     {
         if (fileName == null || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
@@ -495,13 +465,67 @@ public class ConsoleRenderer
 
         return (true, "");
     }
-
-    private void Exit()
+    
+    // Validates an input for neural networks.
+    public (bool, string) ValidateNeuralNetwork(Object neuralNetwork)
     {
-        Clear();
-        System.Environment.Exit(0);
+        string neuralNetworkStr = neuralNetwork.ToString();
+        string pattern = @"^Input ((\|\d+\| )|(\((LeakyReLU|TanH|ReLU)\) ))+Output";
+        bool result = neuralNetworkStr != null && Regex.IsMatch(neuralNetworkStr, pattern, RegexOptions.None);
+        string error = result ? "" : "neural network not valid, check syntax";
+        return (result, error);
     }
 
+    // Validates an input for positive integers.
+    public (bool, string) ValidateIntPositive(string variable)
+    {
+        bool isInt = int.TryParse(variable, out int variableInt);
+        bool result = !(variableInt <= 0 || variableInt > 99999) && isInt;
+        string error = result ? "" : $"value must be positive, an integer, and less than 100000 (inputted {variable})";
+        return (result, error);
+    }
+
+    // Validates an input for positive floats.
+    public (bool, string) ValidateFloatPositive(string variable)
+    {
+        bool isFloat = float.TryParse(variable, out float variableFloat);
+        bool result = !(variableFloat <= 0f || variableFloat > 99999f) && isFloat;
+        string error = result ? "" : $"value must be positive, a float, and less than 100000 (inputted {variable})";
+        return (result, error);
+    }
+
+    // Validates an input for floats.
+    public (bool, string) ValidateFloat(string variable)
+    {
+        bool isFloat = float.TryParse(variable, out float variableFloat);
+        string error = isFloat ? "" : $"value must be a float (inputted {variable})";
+        return (isFloat, error);
+    }
+
+    // Renders a menu from a given list of options.
+    private void RenderMenu(Option[] options, string title, Action menu, bool hasText = false)
+    {
+        Clear();
+        DrawBorder(title);
+        DrawOptions(options);
+        DrawBorder();
+
+        if (hasText)
+        {
+            List<Option> optionsWithoutText = new List<Option>();
+            for (int i = 0; i < options.Length; i++)
+            {
+                if (options[i].Type != OptionType.TEXT) optionsWithoutText.Add(options[i]);
+            }
+
+            options = optionsWithoutText.ToArray();
+        }
+        
+        
+        GetInput(options, menu);
+    }
+
+    // Receives the user input and activates the given option in a menu.
     private void GetInput(Option[] options, Action previousMenu)
     {
         char input = Console.ReadKey(true).KeyChar;
@@ -511,7 +535,8 @@ public class ConsoleRenderer
         if (result == -1) previousMenu();
         else options[result].Activate();
     }
-
+    
+    // Validates the user input for menu selection.
     private int ValidateInput(char input, int count)
     {
         // 65 == 'A'
@@ -520,6 +545,7 @@ public class ConsoleRenderer
         return inputInt - 65;
     }
 
+    // Draws the options.
     private void DrawOptions(Option[] options)
     {
         int count = 0;
@@ -553,12 +579,14 @@ public class ConsoleRenderer
         }
     }
 
+    // Draws a line in the console.
     public static void DrawBorder()
     {
         // 30 characters long
         Console.WriteLine("------------------------------");
     }
 
+    // Draws a line in the console with a title.
     public static void DrawBorder(string title)
     {
         if (title.Length >= 28)
@@ -575,12 +603,14 @@ public class ConsoleRenderer
         Console.WriteLine($"{borderSide} {title} {borderSide}");
     }
 
+    // Clears the console.
     public static void Clear()
     {
         Console.Clear();
     }
 }
 
+// Option class, generic class for items inside a menu.
 public abstract class Option
 {
     public readonly string Text;
@@ -597,12 +627,14 @@ public abstract class Option
     public abstract void Activate(string errorMessage = null);
 }
 
+// Text class, an option with no activation and is used just for text.
 public class Text : Option
 {
     public Text(string text) : base(text, text, OptionType.TEXT) {}
     public override void Activate(string errorMessage = null) {}
 }
 
+// Function class, an option which returns a function upon activation.
 public class Function : Option
 {
     public Function(Action function, string text) : base(function, text, OptionType.FUNCTION) {}
@@ -614,6 +646,7 @@ public class Function : Option
     }
 }
 
+// Variable class, an option which edits a given variable upon activation.
 public class Variable : Option
 {
     public readonly string VariableName;
@@ -675,6 +708,7 @@ public class Variable : Option
     }
 }
 
+// Option Type enum, used for finding out which child class a generic 'Option' class is.
 public enum OptionType
 {
     VARIABLE,

@@ -106,7 +106,7 @@ public class Environment
         {
             foreach (var joint in _walker.GetJoints())
             {
-                joint.Step(deltaTime);
+                joint.Step();
             }
             
             foreach (var body in _rigidBodies)

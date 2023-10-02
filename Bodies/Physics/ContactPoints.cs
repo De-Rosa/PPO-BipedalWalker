@@ -5,11 +5,11 @@ using Microsoft.Xna.Framework;
 
 namespace Physics.Bodies.Physics;
 
+// Contact points class, used for finding the contact points for a given collision.
+// The algorithms used in this class were sourced from https://dyn4j.org/2011/11/contact-points-using-clipping/#cpg-alt.
 public class ContactPoints
 {
-    // Reference: https://research.ncl.ac.uk/game/mastersdegree/gametechnologies/previousinformation/physics5collisionmanifolds/2017%20Tutorial%205%20-%20Collision%20Manifolds.pdf
-    // Uses the algorithm for clipping: https://dyn4j.org/2011/11/contact-points-using-clipping/#cpg-alt
-    // TODO: remake this
+    // Find the contact points for two sets of points given a normal.
     public static List<Vector2> GetContactPoints(List<Vector2> vectorA, List<Vector2> vectorB, Vector2 normal)
     {
         Face referenceFace = GetSignificantFace(vectorA, normal);
@@ -52,6 +52,7 @@ public class ContactPoints
         return clippedPoints;
     }
 
+    // Clips the vectors of the object along a normal and offset.
     private static List<Vector2> ClipVectors(Vector2 vectorA, Vector2 vectorB, Vector2 normal, float offset)
     {
         List<Vector2> points = new List<Vector2>();
@@ -74,6 +75,7 @@ public class ContactPoints
         return points;
     }
 
+    // Finds the significant face of the collision - the one furthest along the normal.
     private static Face GetSignificantFace(List<Vector2> vectors, Vector2 normal)
     {
         Vector2 significantVertex = GetSignificantVertex(vectors, normal, out int index);
@@ -91,6 +93,7 @@ public class ContactPoints
         return new Face(vectors[(index + 1) % vectors.Count], significantVertex, significantVertex);
     }
 
+    // Finds the significant vertex of the collision - the one furthest along the normal.
     private static Vector2 GetSignificantVertex(List<Vector2> vectors, Vector2 normal, out int index)
     {
         Vector2 significantVertex = Vector2.Zero;
@@ -109,6 +112,7 @@ public class ContactPoints
         return significantVertex;
     }
 
+    // Face class, represents a face of an object.
     private struct Face
     {
         public readonly Vector2 VectorA;
@@ -123,6 +127,7 @@ public class ContactPoints
         }
     }
     
+    // Modulus function which supports negative numbers.
     public static int Mod(float a, float b)
     {
         return Convert.ToInt32(a - b * Math.Floor(a / b));

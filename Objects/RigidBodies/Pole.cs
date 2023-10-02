@@ -5,6 +5,7 @@ using Physics.Materials;
 
 namespace Physics.Objects.RigidBodies;
 
+// Pole class, creates a pole IObject.
 public class Pole : RigidBody, IObject
 {
     public void Update(List<RigidBody> rigidBodies, float deltaTime)
@@ -30,10 +31,5 @@ public class Pole : RigidBody, IObject
         });
         
         return new Pole(material, skeleton, isStatic, isFloor);
-    }
-
-    public IBody GetBody()
-    {
-        return this;
     }
 }

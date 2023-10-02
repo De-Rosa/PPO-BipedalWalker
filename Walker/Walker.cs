@@ -134,19 +134,7 @@ public class Walker
             _bodyParts.LeftLegUpperSegment.GetAngle(),
             _bodyParts.RightLegLowerSegment.GetAngle(),
             _bodyParts.RightLegUpperSegment.GetAngle()
-            
-            /*_bodyParts.LeftLegLowerSegment.Collided ? 1 : 0,
-            _bodyParts.LeftLegUpperSegment.Collided ? 1 : 0,
-            _bodyParts.RightLegLowerSegment.Collided ? 1 : 0,
-            _bodyParts.RightLegUpperSegment.Collided ? 1 : 0*/
         };
-        
-        //Console.WriteLine(values[8]);
-
-        /*_bodyParts.LeftLegLowerSegment.Collided = false;
-        _bodyParts.LeftLegUpperSegment.Collided = false;
-        _bodyParts.RightLegLowerSegment.Collided = false;
-        _bodyParts.RightLegUpperSegment.Collided = false;*/
 
         return Matrix.FromValues(values);
     }

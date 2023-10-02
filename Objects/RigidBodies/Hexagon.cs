@@ -5,6 +5,7 @@ using Physics.Materials;
 
 namespace Physics.Objects.RigidBodies;
 
+// Hexagon class, creates a hexagon IObject.
 public class Hexagon : RigidBody, IObject
 {
     public void Update(List<RigidBody> rigidBodies, float deltaTime)
@@ -30,10 +31,5 @@ public class Hexagon : RigidBody, IObject
         });
         
         return new Hexagon(material, skeleton, isStatic);
-    }
-
-    public IBody GetBody()
-    {
-        return this;
     }
 }

@@ -1,14 +1,13 @@
 using System.Collections.Generic;
-using Physics.Objects.RigidBodies;
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Physics.Bodies;
-using Physics.Objects;
 using Matrix = Physics.Walker.PPO.Matrix;
 
 namespace Physics.Rendering;
 
+// Renderer class, allows for drawing of rigid bodies and console rendering.
 public sealed class Renderer
 {
     private readonly SpriteBatch _spriteBatch;
@@ -28,36 +27,43 @@ public sealed class Renderer
         _camera = Vector2.Zero;
     }
 
+    // Updates the console
     public void UpdateConsole()
     {
         _consoleRenderer.Update();
     }
 
+    // Updates the console, rendering the current episode information.
     public void UpdateConsole(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward, Matrix state)
     {
         _consoleRenderer.Update(episode, timeStep, distance, averageReward, bestDistance, pastAverageReward, state);
     }
 
+    // Updates the console, rendering the current training information.
     public void UpdateConsole(int epoch, int batch, int batchSize, float criticLoss)
     {
         _consoleRenderer.Update(epoch, batch, batchSize, criticLoss);
     }
 
+    // Render the exit menu, occuring when 'x' is pressed during an episode.
     public void ExitTraining()
     {
         _consoleRenderer.ExitTraining();
     }
     
+    // Adds the average episode reward to the list for use in data collection.
     public void AddAverageEpisodeReward(float reward)
     {
         _consoleRenderer.AddAverageEpisodeReward(reward);
     }
 
+    // Moves the camera by a vector.
     public void MoveCamera(Vector2 vector)
     {
         _camera += vector;
     }
 
+    // Renders a rigid object by drawing line between its vertices.
     public void RenderRigidObject(RigidBody body)
     {
         List<Vector2> vectors = body.GetVectors();
@@ -69,6 +75,7 @@ public sealed class Renderer
         }
     }
 
+    // Renders the joints of a creature by drawing a coloured square at each position.
     public void RenderJoints(List<Tuple<Vector2, Color>> colors)
     {
         foreach (var color in colors)
@@ -77,6 +84,7 @@ public sealed class Renderer
         }
     }
 
+    // Draws a line between two points.
     public void DrawLine(Vector2 point1, Vector2 point2, Color color, float thickness = 1f)
     {
         var distance = Vector2.Distance(point1, point2);
@@ -84,6 +92,7 @@ public sealed class Renderer
         DrawLine(point1 + _camera, distance, angle, color, thickness);
     }
 
+    // Draws a line from a given position and angle.
     private void DrawLine(Vector2 point, float length, float angle, Color color, float thickness = 1f)
     {
         var origin = new Vector2(0f, 0.5f);
@@ -91,6 +100,7 @@ public sealed class Renderer
         _spriteBatch.Draw(_lineTexture, point + _camera, null, color, angle, origin, scale, SpriteEffects.None, 0);
     }
 
+    // Draws a square at a point.
     public void DrawSquare(Vector2 origin, float length, Color color, float thickness = 1f)
     {
         var squareOrigin = new Vector2(origin.X - length / 2, origin.Y - length / 2);

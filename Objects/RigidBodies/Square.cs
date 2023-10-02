@@ -5,6 +5,7 @@ using Physics.Materials;
 
 namespace Physics.Objects.RigidBodies;
 
+// Square class, creates a square IObject.
 public class Square : RigidBody, IObject
 {
     public void Update(List<RigidBody> rigidBodies, float deltaTime)
@@ -28,10 +29,5 @@ public class Square : RigidBody, IObject
         });
         
         return new Square(material, skeleton, isStatic);
-    }
-    
-    public IBody GetBody()
-    {
-        return this;
     }
 }

@@ -5,6 +5,7 @@ using Physics.Materials;
 
 namespace Physics.Objects.RigidBodies;
 
+// Hull class, creates an IObject from a given set of points.
 public class Hull : RigidBody, IObject
 {
     public void Update(List<RigidBody> rigidBodies, float deltaTime)
@@ -25,11 +26,6 @@ public class Hull : RigidBody, IObject
         skeleton.AddVectors(positions);
 
         return FromSkeleton(material, skeleton, isStatic, isFloor);
-    }
-    
-    public IBody GetBody()
-    {
-        return this;
     }
 
     public void Rotate(float angle)

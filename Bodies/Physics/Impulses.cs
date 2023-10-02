@@ -1,15 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Numerics;
 using Vector2 = Microsoft.Xna.Framework.Vector2;
 
 namespace Physics.Bodies.Physics;
 
+// Impulse class, represents the collision resolution using impulses.
 public class Impulses
 {
+    // Calculates the impulse for a given collision and changes the two rigid body's velocities based on it.
     // http://www.chrishecker.com/images/e/e7/Gdmphys3.pdf
-    // https://research.ncl.ac.uk/game/mastersdegree/gametechnologies/previousinformation/physics6collisionresponse/2017%20Tutorial%206%20-%20Collision%20Response.pdf
     public static void ResolveCollisions(RigidBody bodyA, RigidBody bodyB, List<Vector2> contactPoints, Vector2 normal)
     {
         if (contactPoints.Count == 0) return;
@@ -28,6 +27,7 @@ public class Impulses
         ApplyImpulses(manifold, tangent, impulseF, centreContactAF, centreContactBF);
     }
 
+    // Calculates and applies the impulse for a given joint.
     public static void ResolveJoint(RigidBody bodyA, RigidBody bodyB, List<Vector2> contactPoints, Vector2 normal)
     {
         if (contactPoints.Count == 0) return;
@@ -39,17 +39,21 @@ public class Impulses
         ApplyImpulses(manifold, manifold.Normal, impulse, centreContactA, centreContactB);
     }
     
+    // Calculates the impulse for a collision at a point.
     private static void ResolveCollisionAtPoint(Manifold manifold, Vector2 contactPoint, out Vector2 centreContactA, out Vector2 centreContactB, out float impulse)
     {
         CalculateImpulse(manifold, contactPoint, (1 + manifold.Restitution), manifold.Normal, out centreContactA, out centreContactB, out impulse);
     }
     
+    // Calculates the impulse for friction at a point.
+    // The normal is the tangent of collision.
     private static void ResolveFrictionAtPoint(Manifold manifold, Vector2 contactPoint, out Vector2 centreContactA, out Vector2 centreContactB, out float impulse, out Vector2 tangent)
     {
         tangent = new Vector2(-manifold.Normal.Y, manifold.Normal.X);
         CalculateImpulse(manifold, contactPoint, manifold.Friction, tangent, out centreContactA, out centreContactB, out impulse);
     }
 
+    // Applies the impulse to the two rigid bodies.
     public static void ApplyImpulses(Manifold manifold, Vector2 normal, float impulse, Vector2 centreContactA,
         Vector2 centreContactB)
     {
@@ -77,6 +81,8 @@ public class Impulses
         manifold.BodyB.SetAngularVelocity(angularVelocityB);
     }
     
+    // Calculates the impulse for a given collision.
+    // The collision details are passed in as parameters (normal, force, contact point, collision manifold).
     private static void CalculateImpulse(Manifold manifold, Vector2 contactPoint, float force, Vector2 normal,
         out Vector2 centreContactA, out Vector2 centreContactB, out float impulse)
     {
@@ -108,6 +114,8 @@ public class Impulses
         impulse /= denominator;
     }
 
+    // Collision manifold struct, used for shortening function parameters so that it is easier to call the function.
+    // Stores information of each body and the restitution/friction used for the collision.
     public struct Manifold
     {
         public readonly RigidBody BodyA;

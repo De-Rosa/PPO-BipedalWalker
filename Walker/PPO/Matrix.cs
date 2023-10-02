@@ -3,12 +3,24 @@ using System.Collections.Generic;
 
 namespace Physics.Walker.PPO;
 
+// Matrix class, implementation of matrix math.
 public class Matrix
 {
-    private readonly int _height; // rows
-    private readonly int _length; // columns
-    private readonly float[][] _values; // jagged arrays are more efficient than bi-dimensional arrays
+    private readonly int _height; // Rows of matrix
+    private readonly int _length; // Columns of matrix
+    // We use jagged arrays since they are more efficient than bi-dimensional arrays.
+    // https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/ca1814
+    private readonly float[][] _values; 
 
+    // Converts a jagged array
+    private Matrix(float[][] values)
+    {
+        _values = values;
+        _height = values.Length;
+        _length = values[0].Length;
+    }
+    
+    // Creates an empty matrix from a given height and length.
     public static Matrix FromSize(int height, int length)
     {
         List<float[]> list = new List<float[]>();
@@ -20,28 +32,10 @@ public class Matrix
         return new Matrix(list.ToArray());
     }
 
-    public Matrix Clone()
-    {
-        Matrix newMatrix = Matrix.FromSize(_height, _length);
-        for (int i = 0; i < _values.Length; i++)
-        {
-            for (int j = 0; j < _values[i].Length; j++)
-            {
-                newMatrix._values[i][j] = _values[i][j];
-            }
-        }
-
-        return newMatrix;
-    }
-
-    public static Matrix FromValues(float[][] values)
-    {
-        return new Matrix(values);
-    }
-    
+    // Converts an array of values into a (X) by 1 matrix.
     public static Matrix FromValues(float[] values)
     {
-        Matrix matrix = Matrix.FromSize(values.Length, 1);
+        Matrix matrix = FromSize(values.Length, 1);
         
         for (int i = 0; i < values.Length; i++)
         {
@@ -51,13 +45,7 @@ public class Matrix
         return matrix;
     }
 
-    public static Matrix FromRandom(int height, int length)
-    {
-        Matrix matrix = Matrix.FromSize(height, length);
-        matrix.Randomise();
-        return matrix;
-    }
-    
+    // Xavier, or glorot, initialization is better for training than random uniform values since gradients close to 0 is more efficient.
     // https://stackoverflow.com/questions/53830488/neural-network-only-producing-values-of-1-when-i-add-more-hidden-layers
     // https://datascience.stackexchange.com/questions/102036/where-does-the-normal-glorot-initialization-come-from
     // https://machinelearningmastery.com/weight-initialization-for-deep-learning-neural-networks/
@@ -78,13 +66,27 @@ public class Matrix
         return matrix;
     }
 
+    // Creates a matrix full of 0s from a given height and length.
     public static Matrix FromZeroes(int height, int length)
     {
         Matrix matrix = Matrix.FromSize(height, length);
         matrix.Zero();
         return matrix;
     }
+    
+    // Returns the height of the matrix.
+    public int GetHeight()
+    {
+        return _height;
+    }
 
+    // Returns the length of the matrix.
+    public int GetLength()
+    {
+        return _length;
+    }
+
+    // Loads a matrix from a string of values.
     public static Matrix Load(Matrix matrix, string values)
     {
         float[] floatValues = Array.ConvertAll(values.Split(), float.Parse);
@@ -102,11 +104,13 @@ public class Matrix
         return newMatrix;
     }
     
+    // Converts the matrix values into a string representation.
     public static string Save(Matrix matrix)
     {
         return string.Join(" ", GetRepresentation(matrix));
     }
 
+    // Converts the matrix values into an array of floats.
     public static float[] GetRepresentation(Matrix matrix)
     {
         float[] floatValues = new float[matrix._length * matrix._height];
@@ -122,38 +126,8 @@ public class Matrix
 
         return floatValues;
     }
-    
-    private Matrix(float[][] values)
-    {
-        _values = values;
-        _height = values.Length;
-        _length = values[0].Length;
-    }
 
-    public int GetHeight()
-    {
-        return _height;
-    }
-
-    public int GetLength()
-    {
-        return _length;
-    }
-
-    public void Randomise()
-    {
-        Random random = new Random();
-        
-        for (int i = 0; i < _height; i++)
-        {
-            for (int j = 0; j < _length; j++)
-            {
-                float value = (float) (2f * random.NextDouble()) - 1f;
-                _values[i][j] = value;
-            }
-        }
-    }
-
+    // Sets all of the values inside the matrix to 0.
     public void Zero()
     {
         for (int i = 0; i < _height; i++)
@@ -164,66 +138,24 @@ public class Matrix
             }
         }
     }
-    
-    public float Sum()
-    {
-        if (_length != 1) throw new Exception($"Invalid matrix dimensions: trying to get sum of a matrix which is not length 1.");
-        
-        float sum = 0;
-        for (int i = 0; i < _height; i++)
-        {
-            sum += _values[i][0];
-        }
 
-        return sum;
-    }
-    
-    public float AbsMax()
-    {
-        float max = float.MinValue;
-        
-        for (int i = 0; i < _height; i++)
-        {
-            for (int j = 0; j < _length; j++)
-            {
-                if (MathF.Abs(_values[i][j]) > max) max = MathF.Abs(_values[i][j]);
-            } 
-        }
-
-        return max;
-    }
-    
-    public float Mean()
-    {
-        float sum = Sum();
-        return sum / _height;
-    }
-
-    public float[] ToArray()
-    {
-        if (_length != 1) throw new Exception($"Invalid matrix dimensions: trying to convert a matrix which is not length 1 into a list.");
-        float[] array = new float[_height];
-        
-        for (int i = 0; i < _height; i++)
-        {
-            array[i] = _values[i][0];
-        }
-
-        return array;
-    }
-
-
+    // Applies the exponential function to each value in the matrix.
     public static Matrix Exponential(Matrix matrix)
     {
-        return Matrix.PerformOperation(matrix, MathF.Exp);
+        return PerformOperation(matrix, MathF.Exp);
     }
     
+    // Applies the square root function to each value in the matrix.
+    public static Matrix SquareRoot(Matrix matrix)
+    {
+        return PerformOperation(matrix, MathF.Sqrt);
+    }
     
-    // slower when using multiple threads
+    // Matrix multiplication.
     public static Matrix operator * (Matrix matrixA, Matrix matrixB)
     {
         if (matrixA._length != matrixB._height) throw new Exception($"Invalid matrix dimensions: multiplying {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}");
-        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixB._length);
+        Matrix newMatrix = FromSize(matrixA._height, matrixB._length);
         
         for (int i = 0; i < newMatrix._height; i++)
         {
@@ -236,9 +168,10 @@ public class Matrix
         return newMatrix;
     }
     
+    // Multiplies each value in the matrix with a given float.
     public static Matrix operator * (Matrix matrix, float value)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        Matrix newMatrix = FromSize(matrix._height, matrix._length);
         
         for (int i = 0; i < matrix._height; i++)
         {
@@ -251,9 +184,10 @@ public class Matrix
         return newMatrix;
     }
     
+    // Divides each value in the matrix by a given float.
     public static Matrix operator / (Matrix matrix, float value)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        Matrix newMatrix = FromSize(matrix._height, matrix._length);
         
         for (int i = 0; i < matrix._height; i++)
         {
@@ -265,26 +199,10 @@ public class Matrix
         
         return newMatrix;
     }
-
-    public static Matrix SquareRoot(Matrix matrix)
-    {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
-        
-        for (int i = 0; i < matrix._height; i++)
-        {
-            for (int j = 0; j < matrix._length; j++)
-            {
-                newMatrix._values[i][j] = (float) Math.Sqrt(matrix._values[i][j]);
-            }
-        }
-        
-        return newMatrix;
-    }
     
-    // commutative
     public static Matrix operator * (float value, Matrix matrix)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        Matrix newMatrix = FromSize(matrix._height, matrix._length);
         
         for (int i = 0; i < matrix._height; i++)
         {
@@ -297,11 +215,12 @@ public class Matrix
         return newMatrix;
     }
     
+    // Adds each value of the two matrices together (pairwise summation).
     public static Matrix operator + (Matrix matrixA, Matrix matrixB)
     {
         if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, adding {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
         
-        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixB._length);
+        Matrix newMatrix = FromSize(matrixA._height, matrixB._length);
         
         for (int i = 0; i < newMatrix._height; i++)
         {
@@ -314,9 +233,10 @@ public class Matrix
         return newMatrix;
     }
     
+    // Adds a float to each value in the matrix.
     public static Matrix operator + (Matrix matrix, float value)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        Matrix newMatrix = FromSize(matrix._height, matrix._length);
         
         for (int i = 0; i < matrix._height; i++)
         {
@@ -329,9 +249,10 @@ public class Matrix
         return newMatrix;
     }
     
+    // Subtracts a float from each value in the matrix.
     public static Matrix operator - (Matrix matrix, float value)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        Matrix newMatrix = FromSize(matrix._height, matrix._length);
         
         for (int i = 0; i < matrix._height; i++)
         {
@@ -344,11 +265,12 @@ public class Matrix
         return newMatrix;
     }
     
+    // Subtracts each value of the two matrices together (pairwise subtraction).
     public static Matrix operator - (Matrix matrixA, Matrix matrixB)
     {
         if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, subtracting {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
         
-        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixB._length);
+        Matrix newMatrix = FromSize(matrixA._height, matrixB._length);
         
         for (int i = 0; i < newMatrix._height; i++)
         {
@@ -361,9 +283,10 @@ public class Matrix
         return newMatrix;
     }
     
+    // Negates all values inside the matrix.
     public static Matrix operator - (Matrix matrix)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        Matrix newMatrix = FromSize(matrix._height, matrix._length);
         
         for (int i = 0; i < matrix._height; i++)
         {
@@ -376,10 +299,11 @@ public class Matrix
         return newMatrix;
     }
     
+    // Multiplies each value in the two matrices together (pairwise multiplication).
     public static Matrix HadamardProduct(Matrix matrixA, Matrix matrixB)
     {
         if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, multiplying {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
-        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixB._length);
+        Matrix newMatrix = FromSize(matrixA._height, matrixB._length);
         
         for (int i = 0; i < newMatrix._height; i++)
         {
@@ -392,10 +316,11 @@ public class Matrix
         return newMatrix;
     }
     
+    // Divides each value in the two matrices together (pairwise division).
     public static Matrix HadamardDivision(Matrix matrixA, Matrix matrixB)
     {
         if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, dividing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
-        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixB._length);
+        Matrix newMatrix = FromSize(matrixA._height, matrixB._length);
         
         for (int i = 0; i < newMatrix._height; i++)
         {
@@ -408,9 +333,12 @@ public class Matrix
         return newMatrix;
     }
 
+    // Clips the values of the matrix between two values.
     public static Matrix Clip(Matrix matrix, float upper, float lower)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        if (lower > upper) throw new Exception($"Attempting to clip a matrix with an invalid range ({lower} < x < {upper}).");
+        
+        Matrix newMatrix = FromSize(matrix._height, matrix._length);
         for (int i = 0; i < matrix._height; i++)
         {
             for (int j = 0; j < matrix._length; j++)
@@ -422,19 +350,18 @@ public class Matrix
                 {
                     newMatrix._values[i][j] = lower;
                 }
-                else
-                {
-                    newMatrix._values[i][j] = matrix._values[i][j];
-                }
             }
         }
 
         return newMatrix;
     }
     
-    public static Matrix CompareInRange(Matrix matrix, float upper, float lower, float inRangeValue, float otherValue)
+    // Sets a given value of the matrix to the 'inRangeValue' if it is inside the given range, 'otherValue' if not.
+    public static Matrix InRange(Matrix matrix, float upper, float lower, float inRangeValue, float otherValue)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        if (lower > upper) throw new Exception($"Attempting to compare a matrix with an invalid range ({lower} < x < {upper}).");
+
+        Matrix newMatrix = FromSize(matrix._height, matrix._length);
         for (int i = 0; i < matrix._height; i++)
         {
             for (int j = 0; j < matrix._length; j++)
@@ -452,55 +379,13 @@ public class Matrix
 
         return newMatrix;
     }
-    
-    public static Matrix Clip(Matrix matrix, float upper)
-    {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
-        for (int i = 0; i < matrix._height; i++)
-        {
-            for (int j = 0; j < matrix._length; j++)
-            {
-                if (matrix._values[i][j] > upper)
-                {
-                    newMatrix._values[i][j] = upper;
-                } else
-                {
-                    newMatrix._values[i][j] = matrix._values[i][j];
-                }
-            }
-        }
 
-        return newMatrix;
-    }
-
-    public static Matrix Min(Matrix matrixA, Matrix matrixB)
+    // Compares a given value in two matrices, if value A is less than or equal to value B then the value is 'minValue', else 'maxValue'.
+    public static Matrix LessThan(Matrix matrixA, Matrix matrixB, float minValue, float maxValue)
     {
         if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
 
-        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixA._length);
-        for (int i = 0; i < newMatrix._height; i++)
-        {
-            for (int j = 0; j < newMatrix._length; j++)
-            {
-                if (matrixA._values[i][j] <= matrixB._values[i][j])
-                {
-                    newMatrix._values[i][j] = matrixA._values[i][j];
-                }
-                else
-                {
-                    newMatrix._values[i][j] = matrixB._values[i][j];
-                }
-            }
-        }
-
-        return newMatrix;
-    }
-    
-    public static Matrix Compare(Matrix matrixA, Matrix matrixB, float minValue, float maxValue)
-    {
-        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
-
-        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixA._length);
+        Matrix newMatrix = FromSize(matrixA._height, matrixA._length);
         for (int i = 0; i < newMatrix._height; i++)
         {
             for (int j = 0; j < newMatrix._length; j++)
@@ -519,11 +404,12 @@ public class Matrix
         return newMatrix;
     }
     
-    public static Matrix CompareNonEquals(Matrix matrixA, Matrix matrixB, float minValue, float maxValue)
+    // Compares a given value in two matrices, if value A is less than value B then the value is 'minValue', else 'maxValue'.
+    public static Matrix LessThanNotEquals(Matrix matrixA, Matrix matrixB, float minValue, float maxValue)
     {
         if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
 
-        Matrix newMatrix = Matrix.FromSize(matrixA._height, matrixA._length);
+        Matrix newMatrix = FromSize(matrixA._height, matrixA._length);
         for (int i = 0; i < newMatrix._height; i++)
         {
             for (int j = 0; j < newMatrix._length; j++)
@@ -542,9 +428,10 @@ public class Matrix
         return newMatrix;
     }
 
+    // Transposes the matrix, rotating the matrix by 90 degrees (newHeight = length, newLength = height).
     public static Matrix Transpose(Matrix matrix)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._length, matrix._height);
+        Matrix newMatrix = FromSize(matrix._length, matrix._height);
         for (int i = 0; i < matrix._height; i++)
         {
             for (int j = 0; j < matrix._length; j++)
@@ -555,24 +442,11 @@ public class Matrix
 
         return newMatrix;
     }
-    
-    public static Matrix Reciprocal(Matrix matrix)
-    {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
-        for (int i = 0; i < matrix._height; i++)
-        {
-            for (int j = 0; j < matrix._length; j++)
-            {
-                newMatrix._values[i][j] = 1 / matrix._values[i][j];
-            }
-        }
 
-        return newMatrix;
-    }
-    
+    // Flattens a given X by Y matrix to a Y by 1 matrix.
     public static Matrix Flatten(Matrix matrix)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, 1);
+        Matrix newMatrix = FromSize(matrix._height, 1);
         for (int i = 0; i < matrix._height; i++)
         {
             float sum = 0;
@@ -588,9 +462,10 @@ public class Matrix
         return newMatrix;
     }
     
+    // Peforms a given function on each value in the matrix.
     public static Matrix PerformOperation (Matrix matrix, Func<float, float> operation)
     {
-        Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
+        Matrix newMatrix = FromSize(matrix._height, matrix._length);
         
         for (int i = 0; i < newMatrix._height; i++)
         {

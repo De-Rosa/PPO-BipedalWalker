@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 
 namespace Physics.Materials;
 
+// Material interface, represents all materials.
 public interface IMaterial
 {
     public float InverseMass { get; }

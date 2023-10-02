@@ -3,13 +3,14 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Physics.Input;
 
+// Input Manager class, allows for key input inside the GUI.
 public class InputManager
 {
-    private KeyboardState _currentKeyboardState = new KeyboardState();
-    private KeyboardState _lastKeyboardState = new KeyboardState();
+    private KeyboardState _currentKeyboardState;
+    private KeyboardState _lastKeyboardState;
 
-    private MouseState _currentMouseState = new MouseState();
-    private MouseState _lastMouseState = new MouseState();
+    private MouseState _currentMouseState;
+    private MouseState _lastMouseState;
     
     public void Update()
     {
@@ -49,6 +50,4 @@ public class InputManager
     {
         return _currentMouseState.LeftButton == ButtonState.Pressed && _lastMouseState.LeftButton == ButtonState.Pressed;
     }
-
-
 }

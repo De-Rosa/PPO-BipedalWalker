@@ -4,31 +4,31 @@ using System.Security;
 
 namespace Physics.Walker.PPO.Network;
 
-// https://binaryplanet.org/wp-content/uploads/2020/04/1-p_hyqAtyI8pbt2kEl6siOQ-1.png
+// Activation layer class, represents an activation function which applies to the output of the previous
+// layer.
 public abstract class ActivationLayer : Layer
 {
+    // Feeds forward a matrix through the activation layer, applying the activation function to each value in the matrix.
     public override Matrix FeedForward(Matrix matrix)
     {
         return Matrix.PerformOperation(matrix, Activation);
     }
 
+    // Feeds back a matrix through the activation layer, applying the derivative activation to each value in the matrix.
     public override Matrix FeedBack(Matrix matrix, Matrix gradient)
     {
         return Matrix.HadamardProduct(gradient, Matrix.PerformOperation(matrix, DerivativeActivation));
     }
 
-    public override LayerType GetType()
-    {
-        return LayerType.ACTIVATION;
-    }
-
+    // Activation function
     protected abstract float Activation(float value);
 
+    // Derivative activation function
     protected abstract float DerivativeActivation(float value);
 
-    public abstract override Layer Clone();
 }
 
+// ReLU Layer class, child to activation layer - represents the ReLU activation function.
 public class ReLULayer : ActivationLayer
 {
     protected override float Activation(float value)
@@ -40,13 +40,9 @@ public class ReLULayer : ActivationLayer
     {
         return value < 0 ? 0 : 1;
     }
-
-    public override Layer Clone()
-    {
-        return new ReLULayer();
-    }
 }
 
+// Leaky ReLU Layer class, child to activation layer - represents the Leaky ReLU activation function.
 public class LeakyReLULayer : ActivationLayer
 {
     private const float Alpha = 0.01f;
@@ -60,13 +56,9 @@ public class LeakyReLULayer : ActivationLayer
     {
         return value < 0 ? Alpha : 1;
     }
-    
-    public override Layer Clone()
-    {
-        return new LeakyReLULayer();
-    }
 }
 
+// TanH Layer class, child to activation layer - represents the TanH activation function.
 public class TanhLayer : ActivationLayer
 {
     protected override float Activation(float value)
@@ -77,10 +69,5 @@ public class TanhLayer : ActivationLayer
     protected override float DerivativeActivation(float value)
     {
         return (1 - (MathF.Tanh(value) * MathF.Tanh(value)));
-    }
-    
-    public override Layer Clone()
-    {
-        return new TanhLayer();
     }
 }

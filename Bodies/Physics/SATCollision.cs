@@ -1,12 +1,16 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Xna.Framework;
 
 namespace Physics.Bodies.Physics;
 
+// SAT Collision class, static class with methods relating to the Seperating Axis Theorem. 
+// Using SAT, we can find if two objects are intersecting and their MDV (minimum displacement vector) and collision depth.
+// This information is required for collision resolution.
 public static class SATCollision
 {
+    // Finds if two lists of points are colliding.
+    // Returns the SAT collision result, the normal, and the depth.
     public static bool IsColliding(List<Vector2> vectorA, List<Vector2> vectorB, Vector2 centroidA, Vector2 centroidB,
         out Vector2 normal, out float depth)
     {
@@ -26,6 +30,8 @@ public static class SATCollision
         return result;
     }
     
+    // Checks if there is an overlap per axis of the SAT check.
+    // Returns a maximum depth and it's normal.
     private static bool AxisChecks(List<Vector2> vectorA, List<Vector2> vectorB, ref Vector2 normal, ref float depth)
     {
         for (var i = 0; i < vectorA.Count; i++)
@@ -48,6 +54,8 @@ public static class SATCollision
         return true;
     }
 
+    // Projects the points onto the given axis.
+    // Used to check if there is an overlap.
     private static Projection ProjectPoints(Vector2 axis, List<Vector2> vectors)
     {
         var min = float.MaxValue;
@@ -63,6 +71,8 @@ public static class SATCollision
         return new Projection(min, max);
     }
     
+    // Projection struct, stores the minimum and maximum points of a face's projection.
+    // Used to compare between projections and find overlaps.
     private struct Projection
     {
         private readonly float _min;
@@ -74,6 +84,15 @@ public static class SATCollision
             _max = max;
         }
 
+        // Finds if the two projections (lines) are overlapping.
+        // e.g.
+        // --------------
+        //            -------------
+        // are overlapping with depth 3.
+        // --------------
+        //                 ---------------
+        // are not overlapping.
+        
         public static bool IsOverlapping(Projection projectionA, Projection projectionB, out float depth)
         {
             depth = Math.Min(projectionB._max - projectionA._min, projectionA._max - projectionB._min);

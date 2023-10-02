@@ -5,6 +5,7 @@ using Physics.Materials;
 
 namespace Physics.Objects.RigidBodies;
 
+// Triangle class, creates a triangle IObject.
 public class Triangle : RigidBody, IObject
 {
     public void Update(List<RigidBody> rigidBodies, float deltaTime)
@@ -27,10 +28,5 @@ public class Triangle : RigidBody, IObject
         });
         
         return new Triangle(material, skeleton, isStatic);
-    }
-
-    public IBody GetBody()
-    {
-        return this;
     }
 }

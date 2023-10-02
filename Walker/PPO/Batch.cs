@@ -1,7 +1,6 @@
-using System;
-
 namespace Physics.Walker.PPO;
 
+// Batch class, a list of frames from a trajectory.
 public class Batch
 {
     public Matrix[] States;

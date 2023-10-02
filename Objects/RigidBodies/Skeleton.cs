@@ -1,11 +1,13 @@
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Physics.Bodies.Physics;
-using Physics.Objects.Maths;
 using Vector2 = Microsoft.Xna.Framework.Vector2;
 
 namespace Physics.Objects.RigidBodies;
 
+// Skeleton class, holds the vectors of a rigid object and it's AABB.
+// AABB = Axis Aligned Bounding Box
+// The AABB is used for optimisation of physics updates.
 public class Skeleton
 {
     private List<Vector2> _vectors;
@@ -18,16 +20,16 @@ public class Skeleton
         _boundingBox = new BoundingBox();
     }
 
+    // Checks if two AABBs are colliding (inaccurate but efficient).
+    // This is used before SAT collision checking since it is quicker and is always correct
+    // at detecting if two objects are NOT colliding.
     public static bool IsColliding(Skeleton skeletonA, Skeleton skeletonB)
     {
         return BoundingBox.IsColliding(skeletonA._boundingBox, skeletonB._boundingBox);
     }
-    
-    public static bool IsColliding(Vector2 point, Skeleton skeleton)
-    {
-        return BoundingBox.IsColliding(point, skeleton._boundingBox);
-    }
 
+    // Smooths the corners of a given object.
+    // Used for creating smooth squares/ovals.
     public void SmoothCorners(int count = 1)
     {
         List<Vector2> newVectors = new List<Vector2>();
@@ -50,23 +52,27 @@ public class Skeleton
         }
     }
 
+    // Adds a list of vectors to the skeleton.
     public void AddVectors(Vector2[] vectors)
     {
         _vectors.AddRange(vectors);
-        _centroid = VectorMath.FindCentroid(_vectors.ToArray());
+        _centroid = FindCentroid(_vectors.ToArray());
         _boundingBox.Update(_vectors);
     }
 
+    // Returns the vectors.
     public List<Vector2> GetVectors()
     {
         return _vectors;
     }
 
+    // Returns the centroid of the vectors.
     public Vector2 GetCentroid()
     {
         return _centroid;
     }
 
+    // Moves the skeleton by a given vector.
     public void Move(Vector2 vector)
     {
         for (int i = 0; i < _vectors.Count; i++)
@@ -78,6 +84,8 @@ public class Skeleton
         _boundingBox.Update(_vectors);
     }
 
+    // Rotates the skeleton by a given angle.
+    // The angle is in radians.
     public void Rotate(float angle)
     {
         for (int i = 0; i < _vectors.Count; i++)
@@ -87,19 +95,25 @@ public class Skeleton
         
         _boundingBox.Update(_vectors);
     }
-    
-    public void Rotate(float angle, Vector2 point)
+
+    // Finds the centroid from a given set of points.
+    private static Vector2 FindCentroid(Vector2[] vectors)
     {
-        for (int i = 0; i < _vectors.Count; i++)
+        int count = vectors.Length;
+        Vector2 sum = Vector2.Zero;
+
+        foreach (var vector in vectors)
         {
-            _vectors[i] = Vector2.Transform(_vectors[i] - point, Matrix.CreateRotationZ(angle)) + point;
+            sum += vector;
         }
-        
-        _boundingBox.Update(_vectors);
+
+        sum /= count;
+
+        return sum;
     }
 }
 
-// Bounding box for skeletons, used for collision optimisation
+// Bounding box for skeletons, used for collision optimisation.
 public class BoundingBox
 {
     private Vector2[] _significantCorners;
@@ -109,11 +123,13 @@ public class BoundingBox
         _significantCorners = new Vector2[2];
     }
     
+    // Updates the bounding box by finding the significant corners of the shape.
     public void Update(List<Vector2> vectors)
     {
         _significantCorners = FindSignificantCorners(vectors);
     }
 
+    // Finds if two bounding boxes are colliding by checking their significant corners.
     public static bool IsColliding(BoundingBox boundingBoxA, BoundingBox boundingBoxB)
     {
         Vector2[] cornersA = boundingBoxA._significantCorners;
@@ -123,13 +139,8 @@ public class BoundingBox
                 cornersA[0].Y < cornersB[1].Y && cornersA[1].Y > cornersB[0].Y);
     }
 
-    public static bool IsColliding(Vector2 point, BoundingBox boundingBox)
-    {
-        Vector2[] corners = boundingBox._significantCorners;
-        return (point.X > corners[0].X && point.X < corners[1].X &&
-                point.Y > corners[0].Y && point.Y < corners[1].Y);
-    }
-
+    // Finds the significant corners of a shape by finding its maximum and minimum Xs and Ys.
+    // An offset can be added/subtracted to make the bounding box bigger/smaller than the actual shape.
     private Vector2[] FindSignificantCorners(List<Vector2> vectors)
     {
         const int offset = 0;
