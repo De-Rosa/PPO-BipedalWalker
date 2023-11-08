@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using Physics.Bodies;
-using Physics.Materials;
+using NEA.Bodies;
+using NEA.Materials;
 
-namespace Physics.Objects.RigidBodies;
+namespace NEA.Objects.RigidBodies;
 
 // Pole class, creates a pole IObject.
 public class Pole : RigidBody, IObject

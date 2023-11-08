@@ -2,10 +2,9 @@ using System.Collections.Generic;
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Physics.Bodies;
-using Matrix = Physics.Walker.PPO.Matrix;
+using NEA.Bodies;
 
-namespace Physics.Rendering;
+namespace NEA.Rendering;
 
 // Renderer class, allows for drawing of rigid bodies and console rendering.
 public sealed class Renderer
@@ -34,7 +33,7 @@ public sealed class Renderer
     }
 
     // Updates the console, rendering the current episode information.
-    public void UpdateConsole(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward, Matrix state)
+    public void UpdateConsole(int episode, int timeStep, float distance, float averageReward, float bestDistance, float pastAverageReward, Walker.PPO.Matrix state)
     {
         _consoleRenderer.Update(episode, timeStep, distance, averageReward, bestDistance, pastAverageReward, state);
     }
@@ -61,6 +60,18 @@ public sealed class Renderer
     public void MoveCamera(Vector2 vector)
     {
         _camera += vector;
+    }
+
+    // Resets the camera position.
+    public void ResetCamera()
+    {
+        _camera = Vector2.Zero;
+    }
+
+    // Returns the position of the camera.
+    public Vector2 GetCameraPosition()
+    {
+        return _camera;
     }
 
     // Renders a rigid object by drawing line between its vertices.

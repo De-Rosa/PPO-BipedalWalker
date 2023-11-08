@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Vector2 = Microsoft.Xna.Framework.Vector2;
 
-namespace Physics.Bodies.Physics;
+namespace NEA.Bodies.Physics;
 
 // Impulse class, represents the collision resolution using impulses.
 public class Impulses

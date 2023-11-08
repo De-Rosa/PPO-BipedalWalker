@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Physics.Walker.PPO;
+namespace NEA.Walker.PPO;
 
 // Trajectory class, holds all information about one 'lifetime' for use in training.
 public class Trajectory

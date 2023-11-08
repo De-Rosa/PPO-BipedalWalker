@@ -1,6 +1,6 @@
 using System;
 
-namespace Physics.Walker.PPO;
+namespace NEA.Walker.PPO;
 
 // Dense layer class, represents two matrices - a weight and bias matrix.
 // Gradients are stored every time back propagation is performed.

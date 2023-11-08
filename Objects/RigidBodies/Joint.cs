@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using Physics.Bodies;
-using Physics.Bodies.Physics;
+using NEA.Bodies;
+using NEA.Bodies.Physics;
 
-namespace Physics.Objects.RigidBodies;
+namespace NEA.Objects.RigidBodies;
 
 // Joint class, represents a revolute joint between two rigid bodies.
 public class Joint

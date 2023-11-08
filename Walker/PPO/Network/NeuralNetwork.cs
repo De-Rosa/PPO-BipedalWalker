@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
-namespace Physics.Walker.PPO.Network;
+namespace NEA.Walker.PPO.Network;
 
 // Neural network class, the overall structure of multiple layers.
 // Involves handling each layer during forward/back propagation and stores a cache for
@@ -90,11 +91,55 @@ public class NeuralNetwork
 
         string network = type == "critic" ? Hyperparameters.CriticNeuralNetwork : Hyperparameters.ActorNeuralNetwork;
         if (contents[0] != network) return;
+
+        (bool result, string error) = ValidateWeights(contents);
+        if (!result) return;
         
         for (int i = 0; i < contents.Length - 1; i++)
         {
             _denseLayers[i].Load(contents[i + 1]);
         }
+    }
+
+    // Validates the weights by checking if each value can be parsed as a float.
+    // Any exceptions due to incorrect formatting will be caught and returned as false.
+    public static (bool, string) ValidateWeights(string[] contents)
+    {
+        try
+        {
+            if (contents.Length < 2) return (false, "contents too short");
+
+            for (int i = 1; i < contents.Length; i++)
+            {
+                int weightIndicator = contents[i].IndexOf("W", StringComparison.Ordinal) + 2;
+                int biasIndicator = contents[i].IndexOf("B", StringComparison.Ordinal) + 2;
+
+                string weights = contents[i].Substring(weightIndicator, biasIndicator - weightIndicator - 3);
+                string biases = contents[i].Substring(biasIndicator, contents[i].Length - biasIndicator);
+                
+                foreach (var weight in weights.Split())
+                {
+                    if (!float.TryParse(weight, out float value))
+                    {
+                        return (false, "error in weights section");
+                    }
+                }
+
+                foreach (var bias in biases.Split())
+                {
+                    if (!float.TryParse(bias, out float value))
+                    {
+                        return (false, "error in biases section");
+                    }
+                }
+            }
+        }
+        catch
+        { 
+            return (false, "weights structure issue");
+        }
+        
+        return (true, "");
     }
 
     // Saves the neural network weights.

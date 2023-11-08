@@ -1,6 +1,6 @@
 using Microsoft.Xna.Framework;
 
-namespace Physics.Materials;
+namespace NEA.Materials;
 
 public class SuperRubber : IMaterial
 {

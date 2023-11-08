@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using Physics.Bodies;
+using NEA.Bodies;
 
-namespace Physics.Objects;
+namespace NEA.Objects;
 
 // Object interface, generic class for every object.
 public interface IObject

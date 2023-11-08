@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 
-namespace Physics.Bodies.Physics;
+namespace NEA.Bodies.Physics;
 
 // Contact points class, used for finding the contact points for a given collision.
 // The algorithms used in this class were sourced from https://dyn4j.org/2011/11/contact-points-using-clipping/#cpg-alt.

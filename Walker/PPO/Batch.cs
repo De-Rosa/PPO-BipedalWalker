@@ -1,4 +1,4 @@
-namespace Physics.Walker.PPO;
+namespace NEA.Walker.PPO;
 
 // Batch class, a list of frames from a trajectory.
 public class Batch

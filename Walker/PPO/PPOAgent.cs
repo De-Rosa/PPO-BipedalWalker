@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using Physics.Rendering;
-using Physics.Walker.PPO.Network;
+using NEA.Rendering;
+using NEA.Walker.PPO.Network;
 
-namespace Physics.Walker.PPO;
+namespace NEA.Walker.PPO;
 
 // PPO agent class, acts as the 'brain' of the walker by taking actions and learning based off of them.
 // The overall machine learning algorithm used is Proximal Policy Optimisation.
@@ -98,17 +98,6 @@ public class PPOAgent
         return (layers, denseLayers);
     }
 
-    // Saves the current weights of the neural networks to the given file.
-    public void Save()
-    {
-        string[] criticNetwork = _criticNetwork.Save("critic");
-        string[] actorNetwork = _actorNetwork.Save("actor");
-
-        File.WriteAllLines($"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.CriticWeightFileName}.txt" , criticNetwork);
-        File.WriteAllLines($"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.ActorWeightFileName}.txt" , actorNetwork);
-
-    }
-    
     // Trains the neural network.
     // Calculates the returns, value estimates, and advantages, before splitting it into batches and training.
     public void Train(Trajectory trajectory, Renderer renderer)
@@ -144,6 +133,19 @@ public class PPOAgent
         {
             Save();
         }
+    }
+    
+    // Saves the current weights of the neural networks to the given file.
+    public void Save()
+    {
+        string[] criticNetwork = _criticNetwork.Save("critic");
+        string[] actorNetwork = _actorNetwork.Save("actor");
+        
+        Hyperparameters.CreateDirectories();
+
+        File.WriteAllLines($"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.CriticWeightFileName}.weights" , criticNetwork);
+        File.WriteAllLines($"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.ActorWeightFileName}.weights" , actorNetwork);
+
     }
 
     // PPO training function.
@@ -212,7 +214,7 @@ public class PPOAgent
             _criticNetwork.FeedBack(Matrix.FromValues(new float[] { criticLoss }));
             _actorNetwork.FeedBack(actorLoss);
         }
-
+        
         // Optimise the networks based on the gradients received from back propagation.
         _criticNetwork.Optimise();
         _actorNetwork.Optimise();
@@ -389,3 +391,4 @@ public class PPOAgent
         return batches;
     }
 }
+

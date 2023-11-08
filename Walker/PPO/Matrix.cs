@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Physics.Walker.PPO;
+namespace NEA.Walker.PPO;
 
 // Matrix class, implementation of matrix math.
 public class Matrix
@@ -349,6 +349,10 @@ public class Matrix
                 } else if (matrix._values[i][j] <= lower)
                 {
                     newMatrix._values[i][j] = lower;
+                }
+                else
+                {
+                    newMatrix._values[i][j] = matrix._values[i][j];
                 }
             }
         }

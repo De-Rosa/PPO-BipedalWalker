@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 
-namespace Physics.Bodies.Physics;
+namespace NEA.Bodies.Physics;
 
 // SAT Collision class, static class with methods relating to the Seperating Axis Theorem. 
 // Using SAT, we can find if two objects are intersecting and their MDV (minimum displacement vector) and collision depth.

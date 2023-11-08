@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using Physics.Bodies.Physics;
-using Physics.Materials;
-using Physics.Objects.RigidBodies;
+using NEA.Bodies.Physics;
+using NEA.Materials;
+using NEA.Objects.RigidBodies;
 using Vector2 = Microsoft.Xna.Framework.Vector2;
 
-namespace Physics.Bodies;
+namespace NEA.Bodies;
 
 // Rigid body class, represents a physical object which has collision.
 public class RigidBody

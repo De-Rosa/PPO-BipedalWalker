@@ -1,4 +1,4 @@
-namespace Physics.Walker.PPO;
+namespace NEA.Walker.PPO;
 
 // Abstract layer class, parent of each layer.
 // Used as a generic class for each type.

@@ -1,6 +1,6 @@
 using System;
 
-namespace Physics.Walker.PPO;
+namespace NEA.Walker.PPO;
 
 // Normal distribution class, contains functions involving normal distribution mathematics.
 // Used for action sampling and log probability calculation.
@@ -26,7 +26,7 @@ public class NormalDistribution
         // -ln(std) - ln(sqrt(2pi)) - 0.5((x - mean) / std)^2
         float fraction = (action - mean) / std;
         fraction *= fraction;
-        fraction /= -2;
+        fraction /= 2;
 
         return -MathF.Log(std) - MathF.Log(MathF.Sqrt(2 * MathF.PI)) - fraction;
     }

@@ -1,2 +1,2 @@
-﻿using var game = new Physics.Game1();
+﻿using var game = new NEA.Game1();
 game.Run();

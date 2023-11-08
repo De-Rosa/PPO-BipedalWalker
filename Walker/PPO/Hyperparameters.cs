@@ -1,8 +1,9 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using NEA.Rendering;
 
-namespace Physics.Walker.PPO;
+namespace NEA.Walker.PPO;
 
 // A non-static version of the hyperparameters class for use in serializing (converting to JSON).
 // We need to have a class instance to serialize it, and so this is used when saving/loading JSON files.
@@ -10,7 +11,7 @@ namespace Physics.Walker.PPO;
 public class SerializableHyperparameters
 {
     // Settings
-    public bool FastForward { get; set; }
+    public int GameSpeed { get; set; }
     public bool CollectData { get; set; }
     public bool SaveWeights { get; set; }
 
@@ -49,7 +50,7 @@ public class SerializableHyperparameters
 
     public SerializableHyperparameters()
     {
-        FastForward = Hyperparameters.FastForward;
+        GameSpeed = Hyperparameters.GameSpeed;
         CollectData = Hyperparameters.CollectData;
         SaveWeights = Hyperparameters.SaveWeights;
         Iterations = Hyperparameters.Iterations;
@@ -79,11 +80,11 @@ public class SerializableHyperparameters
 public class Hyperparameters
 {
     // Settings
-    public static bool FastForward = false;
+    public static int GameSpeed = 1;
     public static bool CollectData = true;
     public static bool SaveWeights = true;
-    public static int Iterations = 100;
-    public static int MaxTimesteps = 10000;
+    public static int Iterations = 50;
+    public static int MaxTimesteps = 1000;
     public static bool RoughFloor = false;
     
     // Input: 12 inputs, Output: 4 outputs, |X|: a dense layer with an output of X and input of previous in line, (X): an activation function X layer
@@ -92,7 +93,7 @@ public class Hyperparameters
 
     public static string CriticWeightFileName = "critic";
     public static string ActorWeightFileName = "actor";
-    public static string FilePath = "/Users/square/Projects/Physics/";
+    public static string FilePath = AppDomain.CurrentDomain.BaseDirectory;
 
     // Not stored, used specifically for loading weights.
     public static string[] CriticWeights = Array.Empty<string>();
@@ -100,7 +101,7 @@ public class Hyperparameters
 
     // Adam hyperparameters
     // Adam paper states "Good default settings for the tested machine learning problems are alpha=0.001, beta1=0.9, beta2=0.999 and epsilon=1e−8f"
-    public static float Alpha = 0.001f; // learning rate
+    public static float Alpha = 0.0005f; // learning rate
     public static float Beta1 = 0.9f; // 1st-order exponential decay
     public static float Beta2 = 0.999f; // 2nd-order exponential decay
     public static float AdamEpsilon = 1e-8f; // prevent zero division
@@ -108,7 +109,7 @@ public class Hyperparameters
     // Agent hyperparameters
     public static int Epochs = 5;
     public static int BatchSize = 64;
-    public static bool UseGAE = false;
+    public static bool UseGAE = true;
     public static bool NormalizeAdvantages = true;
     
     // GAE hyperparameters
@@ -122,28 +123,37 @@ public class Hyperparameters
     // Converts the hyperparameters into a JSON file.
     public static async void SerializeJson(string fileLocation)
     {
+        CreateDirectories();
         SerializableHyperparameters hyperparameters = new SerializableHyperparameters();
-        
         using FileStream createStream = File.Create(fileLocation);
         await JsonSerializer.SerializeAsync(createStream, hyperparameters, new JsonSerializerOptions { WriteIndented = true });
         await createStream.DisposeAsync();
     }
     
     // Loads the hyperparameters from a JSON file.
-    public static async void DeserializeJson(string fileLocation)
+    // Cannot be async as it needs to interrupt the program in case of an exception.
+    public static void DeserializeJson(string fileLocation)
     {
         using FileStream openStream = File.OpenRead(fileLocation);
-        SerializableHyperparameters hyperparameters = 
-            await JsonSerializer.DeserializeAsync<SerializableHyperparameters>(openStream);
+        SerializableHyperparameters hyperparameters;
+        try
+        {
+            hyperparameters = JsonSerializer.Deserialize<SerializableHyperparameters>(openStream);
+        }
+        catch (Exception exception)
+        {
+            ErrorMenu(exception.Message);
+            return;
+        }
 
         if (hyperparameters != null)
         {
-            FastForward = hyperparameters.FastForward;
+            GameSpeed = hyperparameters.GameSpeed <= 0 ? 1 : hyperparameters.GameSpeed;
             CollectData = hyperparameters.CollectData;
             SaveWeights = hyperparameters.SaveWeights;
-            Iterations = hyperparameters.Iterations;
+            Iterations = hyperparameters.Iterations <= 0 ? 50 : hyperparameters.Iterations;
             RoughFloor = hyperparameters.RoughFloor;
-            MaxTimesteps = hyperparameters.MaxTimesteps;
+            MaxTimesteps = hyperparameters.MaxTimesteps <= 0 ? 1000 : hyperparameters.MaxTimesteps;
             CriticNeuralNetwork = hyperparameters.CriticNeuralNetwork;
             ActorNeuralNetwork = hyperparameters.ActorNeuralNetwork;
             FilePath = hyperparameters.FilePath;
@@ -151,8 +161,8 @@ public class Hyperparameters
             Beta1 = hyperparameters.Beta1;
             Beta2 = hyperparameters.Beta2;
             AdamEpsilon = hyperparameters.AdamEpsilon;
-            Epochs = hyperparameters.Epochs;
-            BatchSize = hyperparameters.BatchSize;
+            Epochs = hyperparameters.Epochs <= 0 ? 5 : hyperparameters.Epochs;
+            BatchSize = hyperparameters.BatchSize <= 0 ? 64 : hyperparameters.BatchSize ;
             UseGAE = hyperparameters.UseGAE;
             NormalizeAdvantages = hyperparameters.NormalizeAdvantages;
             Gamma = hyperparameters.Gamma;
@@ -162,8 +172,71 @@ public class Hyperparameters
             CriticWeightFileName = hyperparameters.CriticWeightFileName;
             ActorWeightFileName = hyperparameters.ActorWeightFileName;
         }
+        
+        ValidateVariables();
     }
     
+    // Creates the directories required for saving files.
+    public static void CreateDirectories()
+    {
+        if (!Directory.Exists(Hyperparameters.FilePath + "Data/Configurations/"))
+        {
+            Directory.CreateDirectory(Hyperparameters.FilePath + "Data/Configurations/");
+        }
+        if (!Directory.Exists(Hyperparameters.FilePath + "Data/SavedRewards/"))
+        {
+            Directory.CreateDirectory(Hyperparameters.FilePath + "Data/SavedRewards/");
+        }
+        if (!Directory.Exists(Hyperparameters.FilePath + "Data/Weights/"))
+        {
+            Directory.CreateDirectory(Hyperparameters.FilePath + "Data/Weights/");
+        }
+    }
+
+    // Validates variables which would not cause JSON exceptions after deserializing but will cause issues
+    // when the program starts.
+    private static void ValidateVariables()
+    {
+        (bool resultFilePath, string errorFilePath) = ConsoleRenderer.ValidateFilePath(FilePath);
+        if (!resultFilePath)
+        {
+            ErrorMenu($"{errorFilePath}.");
+        }
+
+        (bool resultCriticName, string errorCriticName) = ConsoleRenderer.ValidateFileName(CriticWeightFileName);
+        (bool resultActorName, string errorActorName) = ConsoleRenderer.ValidateFileName(ActorWeightFileName);
+        if (!resultActorName || !resultCriticName)
+        {
+            string colon = !resultActorName && !resultCriticName ? "; " : "";
+            if (!resultActorName) errorActorName = "actor weights " + errorActorName;
+            if (!resultCriticName) errorCriticName = "critic weights " + errorCriticName;
+            ErrorMenu($"{errorActorName}{colon}{errorCriticName}.");
+        }
+
+        (bool resultCritic, string errorCritic) = ConsoleRenderer.ValidateNeuralNetwork(CriticNeuralNetwork, "CriticNeuralNetwork");
+        (bool resultActor, string errorActor) = ConsoleRenderer.ValidateNeuralNetwork(ActorNeuralNetwork, "ActorNeuralNetwork");
+        if (!resultActor || !resultCritic)
+        {
+            string colon = !resultActor && !resultCritic ? "; " : "";
+            if (!resultActor) errorActor = "actor " + errorActor;
+            if (!resultCritic) errorCritic = "critic " + errorCritic;
+            ErrorMenu($"{errorActor}{colon}{errorCritic}.");
+        }
+    }
+
+    // Menu for when deserializing returns an exception (occurs when the user manually edits the JSON files).
+    private static void ErrorMenu(string exception)
+    {
+        Console.Clear();
+        ConsoleRenderer.DrawBorder("JSON Exception");
+        Console.WriteLine("Error in deserializing the loaded JSON file, fix the given errors before loading again.");
+        Console.WriteLine($"Exception: {exception}");
+        Console.WriteLine("Please restart the application, press any key to exit.");
+        ConsoleRenderer.DrawBorder();
+        Console.ReadKey();
+        ConsoleRenderer.Exit();
+    }
+
     // Sets a variable from its given name in a string.
     public static void ReflectionSet(string variableName, object value)
     {
@@ -205,8 +278,8 @@ public class Hyperparameters
             case "LogStandardDeviation":
                 LogStandardDeviation = (float) value;
                 break;
-            case "FastForward":
-                FastForward = (bool) value;
+            case "GameSpeed":
+                GameSpeed = (int) value;
                 break;
             case "CollectData":
                 CollectData = (bool) value;
@@ -215,7 +288,7 @@ public class Hyperparameters
                 SaveWeights = (bool) value;
                 break;
             case "RoughFloor":
-                RoughFloor = (bool)value;
+                RoughFloor = (bool) value;
                 break;
             case "Iterations":
                 Iterations = (int) value;
@@ -233,7 +306,7 @@ public class Hyperparameters
                 CriticWeightFileName = (string)value;
                 break;
             case "ActorWeightFileName":
-                ActorNeuralNetwork = (string) value;
+                ActorWeightFileName = (string) value;
                 break;
             case "FilePath":
                 FilePath = (string) value;
@@ -273,7 +346,7 @@ public class Hyperparameters
             case "LogStandardDeviation":
                 return LogStandardDeviation;
             case "FastForward":
-                return FastForward;
+                return GameSpeed;
             case "CollectData":
                 return CollectData;
             case "SaveWeights":

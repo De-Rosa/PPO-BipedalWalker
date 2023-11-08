@@ -1,15 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Xna.Framework;
-using Physics.Bodies;
-using Physics.Materials;
-using Physics.Objects.RigidBodies;
-using Physics.Rendering;
-using Physics.Walker.PPO;
-using Matrix = Physics.Walker.PPO.Matrix;
+using NEA.Bodies;
+using NEA.Materials;
+using NEA.Objects.RigidBodies;
+using NEA.Rendering;
+using NEA.Walker.PPO;
+using Matrix = NEA.Walker.PPO.Matrix;
 
-namespace Physics.Walker;
+namespace NEA.Walker;
 
 // Walker class, holds the body parts to the walker and the "brain" AI.
 // Provides methods for taking actions and receiving a state.
@@ -57,15 +56,15 @@ public class Walker
 
     // Samples action from the PPO agent, based on a state given by the environment.
     // Outputs the action and it's log probability, to be stored in the trajectory information.
-    public Matrix GetActions(Matrix state, out Matrix logProbabilities)
+    public PPO.Matrix GetActions(PPO.Matrix state, out PPO.Matrix logProbabilities)
     {
-        Matrix actions = _brain.SampleActions(state, out logProbabilities, out Matrix mean, out Matrix std);
+        PPO.Matrix actions = _brain.SampleActions(state, out logProbabilities, out PPO.Matrix mean, out PPO.Matrix std);
         return actions;
     }
 
     // Inputs an action and applies the value set to each joint.
     // The torque's range is -1 ≤ x ≤ 1, as it is clipped by the environment.
-    public void TakeActions(Matrix actions)
+    public void TakeActions(PPO.Matrix actions)
     {
         if (actions.GetHeight() != _joints.Count) return;
         
@@ -119,8 +118,15 @@ public class Walker
     }
 
     // Returns a state matrix involving the walker's current values.
-    // 
-    public Matrix GetState()
+    // Body Angle
+    // Body Angular Velocity
+    // Body Linear Velocity X
+    // Body Linear Velocity Y
+    // Body Left Leg Lower Angle
+    // Body Left Leg Upper Angle
+    // Body Right Leg Lower Angle
+    // Body Right Leg Upper Angle
+    public PPO.Matrix GetState()
     {
         float[] values = new[]
         {
@@ -153,7 +159,7 @@ public class Walker
         });
 
         _bodyParts.Body = Hull.FromSkeleton(_material, bodySkeleton);
-        _bodyParts.Body.SetInverseInertia(0.0005f);
+        _bodyParts.Body.SetInverseInertia(0.0003f);
 
         _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
         _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50f), 75);

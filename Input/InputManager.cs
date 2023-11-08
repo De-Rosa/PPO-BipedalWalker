@@ -1,7 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
-namespace Physics.Input;
+namespace NEA.Input;
 
 // Input Manager class, allows for key input inside the GUI.
 public class InputManager

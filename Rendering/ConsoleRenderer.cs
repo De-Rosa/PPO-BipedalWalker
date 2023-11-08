@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Physics.Walker.PPO;
+using NEA.Walker.PPO;
+using NEA.Walker.PPO.Network;
 
-namespace Physics.Rendering;
+namespace NEA.Rendering;
 
+// Console rendering class, functions which display information inside the console.
+// Since I cannot implement text inside of the GUI, we have to use the console to display information.
 public class ConsoleRenderer
 {
     private const string ConfigurationLocation = "Data/Configurations/";
@@ -46,7 +49,7 @@ public class ConsoleRenderer
         Console.Clear();
 
         DrawBorder();
-        Console.WriteLine($"Episode {episode}, timestep {timeStep} ({(float) (timeStep) / Hyperparameters.MaxTimesteps} % of max timesteps)");
+        Console.WriteLine($"Episode {episode}, timestep {timeStep} ({((float) (timeStep) / Hyperparameters.MaxTimesteps) * 100f} % of max timesteps)");
         DrawBorder();
         Console.WriteLine($"Current average reward: {averageReward}");
         Console.WriteLine($"Current distance: {distance}");
@@ -56,13 +59,13 @@ public class ConsoleRenderer
         DrawBorder();
         Console.WriteLine($"Body angle: {state.GetValue(0, 0)}");
         Console.WriteLine($"Body angular velocity: {state.GetValue(1, 0)}");
-        Console.WriteLine($"Body linear velocity: ({state.GetValue(2, 0)}, {state.GetValue(3, 0)})");
-        Console.WriteLine($"Lower left leg angle: {state.GetValue(4, 0)}");
-        Console.WriteLine($"Upper left leg angle: {state.GetValue(5, 0)}");
-        Console.WriteLine($"Lower right leg angle: {state.GetValue(6, 0)}");
-        Console.WriteLine($"Upper right leg angle: {state.GetValue(7, 0)}");
+        Console.WriteLine($"Body linear velocity: ({state.GetValue(0, 0)}, {state.GetValue(1, 0)})");
+        Console.WriteLine($"Lower left leg angle: {state.GetValue(2, 0)}");
+        Console.WriteLine($"Upper left leg angle: {state.GetValue(3, 0)}");
+        Console.WriteLine($"Lower right leg angle: {state.GetValue(4, 0)}");
+        Console.WriteLine($"Upper right leg angle: {state.GetValue(5, 0)}");
         DrawBorder();
-        Console.WriteLine("Press 'x' on the GUI to exit the training loop.");
+        Console.WriteLine("Press 'x' to exit the training loop.");
     }
 
     // Adds an average reward to the list for use in data collection.
@@ -98,40 +101,10 @@ public class ConsoleRenderer
         RenderMenu(options, "End of training", ExitTraining, hasText: !Hyperparameters.CollectData);
     }
 
-    // Menu for saving data.
-    private void SaveData()
-    {
-        Console.Clear();
-        DrawBorder("Save data");
-        Console.WriteLine("Enter the file name for the saved data (leave blank for default, 'x' to exit):");
-        DrawBorder();
-        
-        string fileName = Console.ReadLine();
-        string fileLocation;
-
-        if (fileName != null && fileName.ToLower() == "x")
-        {
-            ExitTraining();
-            return;
-        }
-
-        if (fileName == "")
-        {
-            fileLocation = $"{Hyperparameters.FilePath}{DataLocation}{DefaultDataName}.txt";
-        }
-        else
-        {
-            fileLocation = $"{Hyperparameters.FilePath}{DataLocation}{fileName}.txt";
-        }
-        
-        CreateDataFile(fileLocation);
-        
-        ExitTraining();
-    }
-
     // Creates a data file from the average rewards list.
     private async void CreateDataFile(string filePath)
     {
+        Hyperparameters.CreateDirectories();
         string data = string.Join(" ", _averageRewards);
         data = $"{_averageRewards.Count}\n" + data;
         await File.WriteAllTextAsync(filePath, data);
@@ -163,7 +136,7 @@ public class ConsoleRenderer
             new Function(EditConstants, "Edit hyperparameter constants"),
             new Variable(Hyperparameters.UseGAE, "UseGAE", "Toggle Generalized Advantage Estimate", HyperparameterMenu),
             new Variable(Hyperparameters.NormalizeAdvantages, "NormalizeAdvantages", "Toggle normalizing advantages", HyperparameterMenu),
-            new Variable(Hyperparameters.LogStandardDeviation, "LogStandardDeviation", "Edit standard deviation", HyperparameterMenu, validationFunction: ValidateFloat),
+            new Variable(Hyperparameters.LogStandardDeviation, "LogStandardDeviation", "Edit log standard deviation", HyperparameterMenu, validationFunction: ValidateFloat),
             new Variable(Hyperparameters.BatchSize, "BatchSize", "Edit batch size", HyperparameterMenu, validationFunction: ValidateIntPositive),
             new Variable(Hyperparameters.Epochs, "Epochs", "Edit epoch count", HyperparameterMenu, validationFunction: ValidateIntPositive),
             new Function(StartingMenu, "Back"),
@@ -222,13 +195,13 @@ public class ConsoleRenderer
     {
         Option[] options = new[]
         {
-            (Option) new Variable(Hyperparameters.FastForward, "FastForward", "Toggle fast-forward", SettingsMenu),
+            (Option) new Variable(Hyperparameters.GameSpeed, "GameSpeed", "Change game speed", SettingsMenu, validationFunction: ValidateIntPositive),
             new Variable(Hyperparameters.Iterations, "Iterations", "Edit physics iteration count", SettingsMenu, validationFunction: ValidateIntPositive),
             new Variable(Hyperparameters.CollectData, "CollectData", "Toggle data collection", SettingsMenu),
             new Variable(Hyperparameters.SaveWeights, "SaveWeights", "Toggle weights saving", SettingsMenu),
             new Variable(Hyperparameters.CriticWeightFileName, "CriticWeightFileName", "Change critic weights file name", SettingsMenu, validationFunction: ValidateFileName),
             new Variable(Hyperparameters.ActorWeightFileName, "ActorWeightFileName", "Change actor weights file name", SettingsMenu, validationFunction: ValidateFileName),
-            new Variable(Hyperparameters.FilePath, "FilePath", "Change file path", SettingsMenu),
+            new Variable(Hyperparameters.FilePath, "FilePath", "Change file path", SettingsMenu, validationFunction: ValidateFilePath),
             new Variable(Hyperparameters.RoughFloor, "RoughFloor", "Toggle rough floor", SettingsMenu),
             new Variable(Hyperparameters.MaxTimesteps, "MaxTimesteps", "Edit maximum timestep count", SettingsMenu, validationFunction: ValidateIntPositive),
             new Function(StartingMenu, "Back"),
@@ -238,12 +211,12 @@ public class ConsoleRenderer
     }
 
     // Exits the program.
-    private void Exit()
+    public static void Exit()
     {
         Clear();
         System.Environment.Exit(0);
     }
-    
+
     // Neural network weight loading sub-menu.
     private void LoadNeuralNetworks()
     {
@@ -272,7 +245,7 @@ public class ConsoleRenderer
         (bool result, string error) = ValidateFileName(fileName);
         if (!result)
         {
-            StartingMenu();
+            LoadCriticNetwork(error);
             return;
         }
 
@@ -284,16 +257,16 @@ public class ConsoleRenderer
 
         if (fileName == "")
         {
-            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.CriticWeightFileName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.CriticWeightFileName}.weights";
         }
         else
         {
-            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{fileName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{fileName}.weights";
         }
 
         if (!File.Exists(fileLocation))
         {
-            LoadCriticNetwork();
+            LoadCriticNetwork("file does not exist");
             return;
         }
 
@@ -301,13 +274,86 @@ public class ConsoleRenderer
 
         if (criticWeights.Length < 2 || criticWeights == Array.Empty<string>())
         {
-            LoadCriticNetwork();
+            LoadCriticNetwork("weights file is too small/empty");
             return;
         }
 
         if (criticWeights[0] != Hyperparameters.CriticNeuralNetwork)
         {
-            LoadCriticNetwork();
+            LoadCriticNetwork("weights file does not have the same network");
+            return;
+        }
+        
+        (bool weightsResult, string weightsError) = NeuralNetwork.ValidateWeights(criticWeights);
+        if (!weightsResult)
+        {
+            LoadCriticNetwork($"weights are invalid: {weightsError}");
+            return;
+        }
+
+        Hyperparameters.CriticWeights = criticWeights;
+        
+        LoadNeuralNetworks();
+    }
+    
+    // Loads critic network weights from a given file, outputting an error.
+    private void LoadCriticNetwork(string error)
+    {
+        Console.Clear();
+        DrawBorder("Load critic network");
+        Console.WriteLine("Enter the file name of the critic network to be loaded (leave blank for default, 'x' to exit):");
+        Console.WriteLine($"Error: {error}.");
+        DrawBorder();
+        
+        string fileName = Console.ReadLine();
+        string fileLocation;
+        
+        (bool result, string errorValidation) = ValidateFileName(fileName);
+        if (!result)
+        {
+            LoadCriticNetwork(errorValidation);
+            return;
+        }
+
+        if (fileName != null && fileName.ToLower() == "x")
+        {
+            LoadNeuralNetworks();
+            return;
+        }
+
+        if (fileName == "")
+        {
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.CriticWeightFileName}.weights";
+        }
+        else
+        {
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{fileName}.weights";
+        }
+
+        if (!File.Exists(fileLocation))
+        {
+            LoadCriticNetwork("file does not exist");
+            return;
+        }
+
+        string[] criticWeights = File.ReadAllLines(fileLocation);
+
+        if (criticWeights.Length < 2 || criticWeights == Array.Empty<string>())
+        {
+            LoadCriticNetwork("weights file is too small/empty");
+            return;
+        }
+
+        if (criticWeights[0] != Hyperparameters.CriticNeuralNetwork)
+        {
+            LoadCriticNetwork("weights file does not have the same network");
+            return;
+        }
+        
+        (bool weightsResult, string weightsError) = NeuralNetwork.ValidateWeights(criticWeights);
+        if (!weightsResult)
+        {
+            LoadCriticNetwork($"weights are invalid: {weightsError}");
             return;
         }
 
@@ -337,22 +383,22 @@ public class ConsoleRenderer
         (bool result, string error) = ValidateFileName(fileName);
         if (!result)
         {
-            LoadActorNetwork();
+            LoadActorNetwork(error);
             return;
         }
         
         if (fileName == "")
         {
-            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.ActorWeightFileName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.ActorWeightFileName}.weights";
         }
         else
         {
-            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{fileName}.txt";
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{fileName}.weights";
         }
 
         if (!File.Exists(fileLocation))
         {
-            LoadActorNetwork();
+            LoadActorNetwork("file does not exist");
             return;
         }
 
@@ -360,13 +406,86 @@ public class ConsoleRenderer
 
         if (actorWeights.Length < 2 || actorWeights == Array.Empty<string>())
         {
-            LoadActorNetwork();
+            LoadActorNetwork("weights file is too small/empty");
             return;
         }
 
         if (actorWeights[0] != Hyperparameters.ActorNeuralNetwork)
         {
-            LoadActorNetwork();
+            LoadActorNetwork("weights file does not have the same network");
+            return;
+        }
+        
+        (bool weightsResult, string weightsError) = NeuralNetwork.ValidateWeights(actorWeights);
+        if (!weightsResult)
+        {
+            LoadActorNetwork($"weights are invalid: {weightsError}");
+            return;
+        }
+
+        Hyperparameters.ActorWeights = actorWeights;
+        
+        LoadNeuralNetworks();
+    }
+    
+    // Loads actor network weights from a given file, outputting an error.
+    private void LoadActorNetwork(string error)
+    {
+        Console.Clear();
+        DrawBorder("Load actor network");
+        Console.WriteLine("Enter the file name of the actor network to be loaded (leave blank for default, 'x' to exit):");
+        Console.WriteLine($"Error: {error}.");
+        DrawBorder();
+        
+        string fileName = Console.ReadLine();
+        string fileLocation;
+        
+        (bool result, string errorValidation) = ValidateFileName(fileName);
+        if (!result)
+        {
+            LoadActorNetwork(errorValidation);
+            return;
+        }
+
+        if (fileName != null && fileName.ToLower() == "x")
+        {
+            LoadNeuralNetworks();
+            return;
+        }
+
+        if (fileName == "")
+        {
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{Hyperparameters.ActorWeightFileName}.weights";
+        }
+        else
+        {
+            fileLocation = $"{Hyperparameters.FilePath}{WeightsLocation}{fileName}.weights";
+        }
+
+        if (!File.Exists(fileLocation))
+        {
+            LoadActorNetwork("file does not exist");
+            return;
+        }
+
+        string[] actorWeights = File.ReadAllLines(fileLocation);
+
+        if (actorWeights.Length < 2 || actorWeights == Array.Empty<string>())
+        {
+            LoadActorNetwork("weights file is too small/empty");
+            return;
+        }
+
+        if (actorWeights[0] != Hyperparameters.ActorNeuralNetwork)
+        {
+            LoadActorNetwork("weights file does not have the same network");
+            return;
+        }
+        
+        (bool weightsResult, string weightsError) = NeuralNetwork.ValidateWeights(actorWeights);
+        if (!weightsResult)
+        {
+            LoadActorNetwork($"weights are invalid: {weightsError}");
             return;
         }
 
@@ -412,6 +531,43 @@ public class ConsoleRenderer
         StartingMenu();
     }
     
+    // Menu for saving data.
+    private void SaveData()
+    {
+        Console.Clear();
+        DrawBorder("Save data");
+        Console.WriteLine("Enter the file name for the saved data (leave blank for default, 'x' to exit):");
+        DrawBorder();
+        
+        string fileName = Console.ReadLine();
+        string fileLocation;
+
+        if (fileName != null && fileName.ToLower() == "x")
+        {
+            ExitTraining();
+            return;
+        }
+        
+        (bool result, string error) = ValidateFileName(fileName);
+        if (!result)
+        {
+            SaveData();
+            return;
+        }
+        
+        if (fileName == "")
+        {
+            fileLocation = $"{Hyperparameters.FilePath}{DataLocation}{DefaultDataName}.txt";
+        }
+        else
+        {
+            fileLocation = $"{Hyperparameters.FilePath}{DataLocation}{fileName}.txt";
+        }
+        
+        CreateDataFile(fileLocation);
+        ExitTraining();
+    }
+    
     // Loads a JSON configuration file.
     private void LoadConfiguration()
     {
@@ -455,8 +611,8 @@ public class ConsoleRenderer
         StartingMenu();
     }
 
-    // Validates an input for files.
-    private (bool, string) ValidateFileName(string fileName)
+    // Validates an input for file names.
+    public static (bool, string) ValidateFileName(string fileName, string variableName = "")
     {
         if (fileName == null || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
@@ -465,19 +621,43 @@ public class ConsoleRenderer
 
         return (true, "");
     }
+
+    // Validates an input for file paths.
+    public static  (bool, string) ValidateFilePath(string filePath, string variableName = "")
+    {
+        if (filePath == null || !Directory.Exists(filePath) || !filePath.EndsWith("/"))
+        {
+            return (false, "file path is invalid");
+        }
+
+        return (true, "");
+    }
     
     // Validates an input for neural networks.
-    public (bool, string) ValidateNeuralNetwork(Object neuralNetwork)
+    public static (bool, string) ValidateNeuralNetwork(string neuralNetwork, string variableName )
     {
-        string neuralNetworkStr = neuralNetwork.ToString();
-        string pattern = @"^Input ((\|\d+\| )|(\((LeakyReLU|TanH|ReLU)\) ))+Output";
-        bool result = neuralNetworkStr != null && Regex.IsMatch(neuralNetworkStr, pattern, RegexOptions.None);
+        if (variableName != "CriticNeuralNetwork" && variableName != "ActorNeuralNetwork") return (false, "invalid neural network type");
+        
+        string pattern = @"^Input ((\|[1-9]\d*\| )|(\((LeakyReLU|TanH|ReLU)\) ))+Output$";
+        bool result = Regex.IsMatch(neuralNetwork, pattern, RegexOptions.None);
+        
         string error = result ? "" : "neural network not valid, check syntax";
+        if (result)
+        {
+            Match outputDense = Regex.Match(neuralNetwork, @"\|\d+\|", RegexOptions.RightToLeft);
+            if (outputDense.Length == 0) return (false, "no dense layers");
+            int outputInt = Convert.ToInt32(outputDense.ToString().Trim('|'));
+            int requiredOutputInt = variableName == "CriticNeuralNetwork" ? 1 : 4;
+
+            result = outputInt == requiredOutputInt;
+            error = result ? "" : $"last dense layer should output {requiredOutputInt}, currently outputs {outputInt}";
+        }
+        
         return (result, error);
     }
 
     // Validates an input for positive integers.
-    public (bool, string) ValidateIntPositive(string variable)
+    public static (bool, string) ValidateIntPositive(string variable, string variableName = "")
     {
         bool isInt = int.TryParse(variable, out int variableInt);
         bool result = !(variableInt <= 0 || variableInt > 99999) && isInt;
@@ -486,7 +666,7 @@ public class ConsoleRenderer
     }
 
     // Validates an input for positive floats.
-    public (bool, string) ValidateFloatPositive(string variable)
+    public static (bool, string) ValidateFloatPositive(string variable, string variableName = "")
     {
         bool isFloat = float.TryParse(variable, out float variableFloat);
         bool result = !(variableFloat <= 0f || variableFloat > 99999f) && isFloat;
@@ -495,7 +675,7 @@ public class ConsoleRenderer
     }
 
     // Validates an input for floats.
-    public (bool, string) ValidateFloat(string variable)
+    public static (bool, string) ValidateFloat(string variable, string variableName = "")
     {
         bool isFloat = float.TryParse(variable, out float variableFloat);
         string error = isFloat ? "" : $"value must be a float (inputted {variable})";
@@ -611,6 +791,7 @@ public class ConsoleRenderer
 }
 
 // Option class, generic class for items inside a menu.
+// We can make the menus modular so its easier to add variables/options in menus.
 public abstract class Option
 {
     public readonly string Text;
@@ -639,6 +820,8 @@ public class Function : Option
 {
     public Function(Action function, string text) : base(function, text, OptionType.FUNCTION) {}
 
+    // Function which is called when the option is activated.
+    // Performs a function given.
     public override void Activate(string errorMessage = null)
     {
         Action action = (Action)_activation;
@@ -649,32 +832,34 @@ public class Function : Option
 // Variable class, an option which edits a given variable upon activation.
 public class Variable : Option
 {
-    public readonly string VariableName;
-    public bool ShowCurrent;
+    private readonly string _variableName;
+    public readonly bool ShowCurrent;
     private readonly Action _previousMenu;
-    private Func<string, (bool, string)> _validationFunction;
+    private readonly Func<string, string, (bool, string)> _validationFunction;
     
-    public Variable(object value, string variableName, string text, Action previousMenu, bool showCurrent = true, Func<string, (bool, string)> validationFunction = null) : base(value, text, OptionType.VARIABLE)
+    public Variable(object value, string variableName, string text, Action previousMenu, bool showCurrent = true, Func<string, string, (bool, string)> validationFunction = null) : base(value, text, OptionType.VARIABLE)
     {
-        VariableName = variableName;
+        _variableName = variableName;
         ShowCurrent = showCurrent;
         _previousMenu = previousMenu;
         _validationFunction = validationFunction;
     }
 
+    // Function which is called when the option is activated.
+    // Edits a variable given.
     public override void Activate(string errorMessage = null)
     {
         ConsoleRenderer.Clear();
 
         if (_activation is bool)
         {
-            Hyperparameters.ReflectionSet(VariableName, ! (bool) Hyperparameters.ReflectionGet(VariableName));
+            Hyperparameters.ReflectionSet(_variableName, ! (bool) Hyperparameters.ReflectionGet(_variableName));
             _previousMenu();
             return;
         }
         
         ConsoleRenderer.DrawBorder("Variable Edit");
-        Console.WriteLine($"Currently editing: {VariableName} ('x' to exit).");
+        Console.WriteLine($"Currently editing: {_variableName} ('x' to exit).");
         if (errorMessage != null) Console.WriteLine($"Error: {errorMessage}.");
         ConsoleRenderer.DrawBorder();
         
@@ -688,7 +873,9 @@ public class Variable : Option
         
         if (_validationFunction != null)
         {
-            (bool result, string error) = _validationFunction(input);
+            // We pass in the variable name to the validation function in case the function requires any specific information about
+            // what variable is being edited. (e.g. critic/actor network validation)
+            (bool result, string error) = _validationFunction(input, _variableName);
             if (!result)
             {
                 Activate(error);
@@ -698,10 +885,11 @@ public class Variable : Option
         
         var value = Convert.ChangeType(input, _activation.GetType());
 
-        Hyperparameters.ReflectionSet(VariableName, value);
+        Hyperparameters.ReflectionSet(_variableName, value);
         _previousMenu();
     }
 
+    // Returns the current value of the variable.
     public object GetValue()
     {
         return _activation;

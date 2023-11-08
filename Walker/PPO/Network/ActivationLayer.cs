@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Security;
 
-namespace Physics.Walker.PPO.Network;
+namespace NEA.Walker.PPO.Network;
 
 // Activation layer class, represents an activation function which applies to the output of the previous
 // layer.

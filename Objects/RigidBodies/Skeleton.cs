@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
-using Physics.Bodies.Physics;
+using NEA.Bodies.Physics;
 using Vector2 = Microsoft.Xna.Framework.Vector2;
 
-namespace Physics.Objects.RigidBodies;
+namespace NEA.Objects.RigidBodies;
 
 // Skeleton class, holds the vectors of a rigid object and it's AABB.
 // AABB = Axis Aligned Bounding Box
