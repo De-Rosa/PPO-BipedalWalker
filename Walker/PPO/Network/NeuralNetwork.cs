@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using NEA.Rendering;
 
 namespace NEA.Walker.PPO.Network;
 
@@ -55,6 +56,7 @@ public class NeuralNetwork
         foreach (var layer in _layers)
         {
             if (cache) _cache.Add(matrix);
+            // can throw exception, will be caught by functions which feed forward
             matrix = layer.FeedForward(matrix);
         }
 
@@ -64,8 +66,15 @@ public class NeuralNetwork
     // Feeds a matrix back through the neural network.
     public Matrix FeedBack(Matrix gradient)
     {
+        if (_cache.Count == 0)
+        {
+            ErrorLogger.LogError("Attempting to feed back a matrix without cache values.");
+            throw new Exception("Attempting to feed back a matrix without cache values.");
+        }
+        
         for (int i = _layers.Count - 1; i >= 0; i--)
         {
+            // can throw exception, will be caught by functions which feed backward
             gradient = _layers[i].FeedBack(_cache[i], gradient);
         }
 
@@ -84,7 +93,11 @@ public class NeuralNetwork
     // Loads the neural network weights.
     public void Load(string type)
     {
-        if (type != "critic" && type != "actor") return;
+        if (type != "critic" && type != "actor")
+        {
+            ErrorLogger.LogError($"Loading neural network using type not known. (used: {type})");
+            return;
+        }
 
         string[] contents = type == "critic" ? Hyperparameters.CriticWeights : Hyperparameters.ActorWeights;
         if (contents.Length < 2 || contents == Array.Empty<string>()) return;
@@ -145,7 +158,11 @@ public class NeuralNetwork
     // Saves the neural network weights.
     public string[] Save(string type)
     {
-        if (type != "critic" && type != "actor") return Array.Empty<string>();
+        if (type != "critic" && type != "actor")
+        {
+            ErrorLogger.LogError($"Saving neural network using type not known. (used: {type})");
+            throw new Exception($"Saving neural network using type not known. (used: {type})");
+        }
         
         string[] contents = new string[_denseLayers.Count + 1];
         contents[0] = type == "critic" ? Hyperparameters.CriticNeuralNetwork : Hyperparameters.ActorNeuralNetwork;

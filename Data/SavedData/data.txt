@@ -1,0 +1,9 @@
+-15.335737
+length 1, total rewards
+
+-0.32000667
+length 1, critic losses
+
+-0.0057393787
+length 1, actor losses
+

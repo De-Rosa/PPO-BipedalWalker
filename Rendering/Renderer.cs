@@ -51,9 +51,21 @@ public sealed class Renderer
     }
     
     // Adds the average episode reward to the list for use in data collection.
-    public void AddAverageEpisodeReward(float reward)
+    public void AddTotalEpisodeReward(float reward)
     {
-        _consoleRenderer.AddAverageEpisodeReward(reward);
+        _consoleRenderer.AddTotalEpisodeReward(reward);
+    }
+    
+    // Adds a critic loss to the list for use in data collection.
+    public void AddCriticLoss(float loss)
+    {
+        _consoleRenderer.AddCriticLoss(loss);
+    }
+    
+    // Adds an actor loss to the list for use in data collection.
+    public void AddActorLoss(float loss)
+    {
+        _consoleRenderer.AddActorLoss(loss);
     }
 
     // Moves the camera by a vector.

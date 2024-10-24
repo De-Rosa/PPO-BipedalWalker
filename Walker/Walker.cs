@@ -20,13 +20,12 @@ public class Walker
     private Vector2 _previousPosition;
     private BodyParts _bodyParts;
     private readonly PPOAgent _brain;
-
     public bool Terminal;
 
     public Walker()
     {
         _joints = new List<Joint>();
-        _brain = new PPOAgent(8, 4);
+        _brain = new PPOAgent(12, 4);
         _bodyParts = new BodyParts();
         _material = new Carpet();
         _position = new Vector2(125, 800);
@@ -51,7 +50,7 @@ public class Walker
     {
         _previousPosition = _position;
         _position = _bodyParts.Body.GetCentroid();
-        if (_bodyParts.Body.Collided) Terminal = true;
+        if (_bodyParts.Body.Collided || _bodyParts.LeftLegUpperSegment.Collided || _bodyParts.RightLegUpperSegment.Collided) Terminal = true;
     }
 
     // Samples action from the PPO agent, based on a state given by the environment.
@@ -118,30 +117,37 @@ public class Walker
     }
 
     // Returns a state matrix involving the walker's current values.
-    // Body Angle
-    // Body Angular Velocity
-    // Body Linear Velocity X
-    // Body Linear Velocity Y
-    // Body Left Leg Lower Angle
-    // Body Left Leg Upper Angle
-    // Body Right Leg Lower Angle
-    // Body Right Leg Upper Angle
-    public PPO.Matrix GetState()
+    // body joint position X
+    // body joint position Y
+    // left joint position X
+    // left joint position y
+    // right joint position x
+    // right joint position y
+    // body linear velocity x
+    // body linear velocity y
+    // body left leg lower angle
+    // body left leg upper angle
+    // body right leg lower angle
+    // body right leg upper angle
+    public Matrix GetState()
     {
         float[] values = new[]
         {
-            _bodyParts.Body.GetAngle(),
-            _bodyParts.Body.GetAngularVelocity(),
+            (_joints[0].GetPointA().X) / 900f,
+            (_joints[0].GetPointA().Y) / 500f,
+            (_joints[2].GetPointA().X) / 900f,
+            (_joints[2].GetPointA().Y) / 500f,
+            (_joints[3].GetPointA().X) / 900f,
+            (_joints[3].GetPointA().Y) / 500f,
             
             _bodyParts.Body.GetLinearVelocity().X / Game1.FrameRate,
             _bodyParts.Body.GetLinearVelocity().Y / Game1.FrameRate,
-            
+
             _bodyParts.LeftLegLowerSegment.GetAngle(),
             _bodyParts.LeftLegUpperSegment.GetAngle(),
             _bodyParts.RightLegLowerSegment.GetAngle(),
-            _bodyParts.RightLegUpperSegment.GetAngle()
+            _bodyParts.RightLegUpperSegment.GetAngle(),
         };
-
         return Matrix.FromValues(values);
     }
 
@@ -161,11 +167,11 @@ public class Walker
         _bodyParts.Body = Hull.FromSkeleton(_material, bodySkeleton);
         _bodyParts.Body.SetInverseInertia(0.0003f);
 
-        _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
-        _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50f), 75);
+        _bodyParts.LeftLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 30), 75);
+        _bodyParts.LeftLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 60f), 75);
 
-        _bodyParts.RightLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 20), 75);
-        _bodyParts.RightLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 50f), 75);
+        _bodyParts.RightLegUpperSegment = Pole.FromSize(_material, _position + new Vector2(0, 30), 75);
+        _bodyParts.RightLegLowerSegment = Pole.FromSize(_material, _position + new Vector2(0, 60f), 75);
 
         rigidBodies.AddRange(new RigidBody[] {_bodyParts.LeftLegLowerSegment, _bodyParts.LeftLegUpperSegment, _bodyParts.Body, _bodyParts.RightLegLowerSegment, _bodyParts.RightLegUpperSegment});
     }

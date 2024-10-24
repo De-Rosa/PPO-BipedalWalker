@@ -88,8 +88,8 @@ public class Hyperparameters
     public static bool RoughFloor = false;
     
     // Input: 12 inputs, Output: 4 outputs, |X|: a dense layer with an output of X and input of previous in line, (X): an activation function X layer
-    public static string CriticNeuralNetwork = "Input |1| (LeakyReLU) Output";
-    public static string ActorNeuralNetwork = "Input |64| (LeakyReLU) |4| (TanH) Output";
+    public static string CriticNeuralNetwork = "Input |64| (LeakyReLU) |1| Output";
+    public static string ActorNeuralNetwork = "Input |64| (LeakyReLU) |64| (LeakyReLU) |4| (TanH) Output";
 
     public static string CriticWeightFileName = "critic";
     public static string ActorWeightFileName = "actor";
@@ -101,7 +101,7 @@ public class Hyperparameters
 
     // Adam hyperparameters
     // Adam paper states "Good default settings for the tested machine learning problems are alpha=0.001, beta1=0.9, beta2=0.999 and epsilon=1e−8f"
-    public static float Alpha = 0.0005f; // learning rate
+    public static float Alpha = 0.001f; // learning rate
     public static float Beta1 = 0.9f; // 1st-order exponential decay
     public static float Beta2 = 0.999f; // 2nd-order exponential decay
     public static float AdamEpsilon = 1e-8f; // prevent zero division
@@ -109,11 +109,11 @@ public class Hyperparameters
     // Agent hyperparameters
     public static int Epochs = 5;
     public static int BatchSize = 64;
-    public static bool UseGAE = true;
-    public static bool NormalizeAdvantages = true;
+    public static bool UseGAE = false;
+    public static bool NormalizeAdvantages = false;
     
     // GAE hyperparameters
-    public static float Gamma = 0.95f; // Discount Factor
+    public static float Gamma = 0.9f; // Discount Factor
     public static float Lambda = 0.95f; // Smoothing Factor
     
     // PPO hyperparameters
@@ -142,38 +142,78 @@ public class Hyperparameters
         }
         catch (Exception exception)
         {
-            ErrorMenu(exception.Message);
+            ErrorLogger.LogError($"JSON deserializer error. ({exception.Message})");
             return;
         }
 
-        if (hyperparameters != null)
+        try
         {
-            GameSpeed = hyperparameters.GameSpeed <= 0 ? 1 : hyperparameters.GameSpeed;
-            CollectData = hyperparameters.CollectData;
-            SaveWeights = hyperparameters.SaveWeights;
-            Iterations = hyperparameters.Iterations <= 0 ? 50 : hyperparameters.Iterations;
-            RoughFloor = hyperparameters.RoughFloor;
-            MaxTimesteps = hyperparameters.MaxTimesteps <= 0 ? 1000 : hyperparameters.MaxTimesteps;
-            CriticNeuralNetwork = hyperparameters.CriticNeuralNetwork;
-            ActorNeuralNetwork = hyperparameters.ActorNeuralNetwork;
-            FilePath = hyperparameters.FilePath;
-            Alpha = hyperparameters.Alpha;
-            Beta1 = hyperparameters.Beta1;
-            Beta2 = hyperparameters.Beta2;
-            AdamEpsilon = hyperparameters.AdamEpsilon;
-            Epochs = hyperparameters.Epochs <= 0 ? 5 : hyperparameters.Epochs;
-            BatchSize = hyperparameters.BatchSize <= 0 ? 64 : hyperparameters.BatchSize ;
-            UseGAE = hyperparameters.UseGAE;
-            NormalizeAdvantages = hyperparameters.NormalizeAdvantages;
-            Gamma = hyperparameters.Gamma;
-            Lambda = hyperparameters.Lambda;
-            Epsilon = hyperparameters.Epsilon;
-            LogStandardDeviation = hyperparameters.LogStandardDeviation;
-            CriticWeightFileName = hyperparameters.CriticWeightFileName;
-            ActorWeightFileName = hyperparameters.ActorWeightFileName;
+            if (hyperparameters != null)
+            {
+                ValidateHyperparameterValues(hyperparameters);
+                
+                GameSpeed = hyperparameters.GameSpeed;
+                CollectData = hyperparameters.CollectData;
+                SaveWeights = hyperparameters.SaveWeights;
+                Iterations = hyperparameters.Iterations;
+                RoughFloor = hyperparameters.RoughFloor;
+                MaxTimesteps = hyperparameters.MaxTimesteps;
+                CriticNeuralNetwork = hyperparameters.CriticNeuralNetwork;
+                ActorNeuralNetwork = hyperparameters.ActorNeuralNetwork;
+                FilePath = hyperparameters.FilePath;
+                Alpha = hyperparameters.Alpha;
+                Beta1 = hyperparameters.Beta1;
+                Beta2 = hyperparameters.Beta2;
+                AdamEpsilon = hyperparameters.AdamEpsilon;
+                Epochs = hyperparameters.Epochs;
+                BatchSize = hyperparameters.BatchSize <= 0 ? 64 : hyperparameters.BatchSize;
+                UseGAE = hyperparameters.UseGAE;
+                NormalizeAdvantages = hyperparameters.NormalizeAdvantages;
+                Gamma = hyperparameters.Gamma;
+                Lambda = hyperparameters.Lambda;
+                Epsilon = hyperparameters.Epsilon;
+                LogStandardDeviation = hyperparameters.LogStandardDeviation;
+                CriticWeightFileName = hyperparameters.CriticWeightFileName;
+                ActorWeightFileName = hyperparameters.ActorWeightFileName;
+            }
+        }
+        catch (Exception e)
+        {
+            ErrorLogger.LogError($"Exception occurred while setting the values of the hyperparameters during deserialization: ({e.Message})");
+            return;
         }
         
         ValidateVariables();
+    }
+
+    private static void ValidateHyperparameterValues(SerializableHyperparameters hyperparameters)
+    {
+        if (hyperparameters.GameSpeed <= 0 || hyperparameters.GameSpeed >= 10) 
+            throw new Exception($"Invalid game speed, should be in range 0<x<10 ({hyperparameters.GameSpeed})");
+        if (hyperparameters.Iterations <= 0 || hyperparameters.Iterations >= 200)
+            throw new Exception($"Invalid iterations count, should be in range 0<x<200 ({hyperparameters.Iterations})");
+        if (hyperparameters.MaxTimesteps <= 0) 
+            throw new Exception($"Invalid maximum time steps amount, should be in range x>0 ({hyperparameters.MaxTimesteps})");
+        if (hyperparameters.Alpha <= 0 || hyperparameters.Alpha >= 10)
+            throw new Exception($"Invalid alpha value, should be in range 0<x<10 ({hyperparameters.Alpha})");
+        if (hyperparameters.Beta1 <= 0 || hyperparameters.Beta1 > 1)
+            throw new Exception($"Invalid beta1 value, should be in range 0<x<1 ({hyperparameters.Beta1}");
+        if (hyperparameters.Beta2 <= 0 || hyperparameters.Beta2 > 1)
+            throw new Exception($"Invalid beta2 value, should be in range 0<x<1 ({hyperparameters.Beta2})");
+        if (hyperparameters.AdamEpsilon <= 0 || hyperparameters.AdamEpsilon >= 1)
+            throw new Exception($"Invalid Adam epsilon value, should be in range 0<x<1 ({hyperparameters.AdamEpsilon})");
+        if (hyperparameters.Epochs <= 0 || hyperparameters.Epochs >= 50)
+            throw new Exception($"Invalid epochs value, should be in range 0<x<50 ({hyperparameters.Epochs})");
+        if (hyperparameters.BatchSize <= 0 || hyperparameters.BatchSize >= 1000)
+            throw new Exception($"Invalid batch size value, should be in range 0<x<1000 ({hyperparameters.BatchSize})");
+        if (hyperparameters.Gamma <= 0 || hyperparameters.Gamma > 1)
+            throw new Exception($"Invalid gamma value, should be in range 0<x<1 ({hyperparameters.Gamma}");
+        if (hyperparameters.Lambda <= 0 || hyperparameters.Lambda > 1)
+            throw new Exception($"Invalid lambda value, should be in range 0<x<1 ({hyperparameters.Lambda}");
+        if (hyperparameters.Epsilon <= 0 || hyperparameters.Epsilon > 1)
+            throw new Exception($"Invalid epslion value, should be in range 0<x<1 ({hyperparameters.Epsilon}");
+        if (hyperparameters.LogStandardDeviation <= -5 || hyperparameters.LogStandardDeviation >= 5)
+            throw new Exception($"Invalid log standard deviation value, should be in range -5<x<5 ({LogStandardDeviation}");
     }
     
     // Creates the directories required for saving files.
@@ -183,13 +223,17 @@ public class Hyperparameters
         {
             Directory.CreateDirectory(Hyperparameters.FilePath + "Data/Configurations/");
         }
-        if (!Directory.Exists(Hyperparameters.FilePath + "Data/SavedRewards/"))
+        if (!Directory.Exists(Hyperparameters.FilePath + "Data/SavedData/"))
         {
-            Directory.CreateDirectory(Hyperparameters.FilePath + "Data/SavedRewards/");
+            Directory.CreateDirectory(Hyperparameters.FilePath + "Data/SavedData/");
         }
         if (!Directory.Exists(Hyperparameters.FilePath + "Data/Weights/"))
         {
             Directory.CreateDirectory(Hyperparameters.FilePath + "Data/Weights/");
+        }
+        if (!Directory.Exists(Hyperparameters.FilePath + "Logs/"))
+        {
+            Directory.CreateDirectory(Hyperparameters.FilePath + "Logs/");
         }
     }
 
@@ -200,7 +244,8 @@ public class Hyperparameters
         (bool resultFilePath, string errorFilePath) = ConsoleRenderer.ValidateFilePath(FilePath);
         if (!resultFilePath)
         {
-            ErrorMenu($"{errorFilePath}.");
+            ErrorLogger.LogError($"Invalid file path for the program. ({errorFilePath})");
+            FilePath = AppDomain.CurrentDomain.BaseDirectory;
         }
 
         (bool resultCriticName, string errorCriticName) = ConsoleRenderer.ValidateFileName(CriticWeightFileName);
@@ -208,37 +253,44 @@ public class Hyperparameters
         if (!resultActorName || !resultCriticName)
         {
             string colon = !resultActorName && !resultCriticName ? "; " : "";
-            if (!resultActorName) errorActorName = "actor weights " + errorActorName;
-            if (!resultCriticName) errorCriticName = "critic weights " + errorCriticName;
-            ErrorMenu($"{errorActorName}{colon}{errorCriticName}.");
-        }
+            if (!resultActorName)
+            {
+                errorActorName = "actor weights " + errorActorName;
+                ActorWeightFileName = "actor";
+            }
 
+            if (!resultCriticName)
+            {
+                errorCriticName = "critic weights " + errorCriticName;
+                CriticWeightFileName = "critic";
+            }
+            
+            ErrorLogger.LogError($"Invalid file names. ({errorActorName}{colon}{errorCriticName})");
+        }
+        
         (bool resultCritic, string errorCritic) = ConsoleRenderer.ValidateNeuralNetwork(CriticNeuralNetwork, "CriticNeuralNetwork");
         (bool resultActor, string errorActor) = ConsoleRenderer.ValidateNeuralNetwork(ActorNeuralNetwork, "ActorNeuralNetwork");
         if (!resultActor || !resultCritic)
         {
             string colon = !resultActor && !resultCritic ? "; " : "";
-            if (!resultActor) errorActor = "actor " + errorActor;
-            if (!resultCritic) errorCritic = "critic " + errorCritic;
-            ErrorMenu($"{errorActor}{colon}{errorCritic}.");
+            if (!resultActor)
+            {
+                errorActor = "actor " + errorActor;
+                ActorNeuralNetwork = "Input |64| (LeakyReLU) |64| (LeakyReLU) |4| (TanH) Output";
+            }
+
+            if (!resultCritic)
+            {
+                errorCritic = "critic " + errorCritic;
+                CriticNeuralNetwork = "Input |64| (LeakyReLU) |1| Output";
+            }
+            
+            ErrorLogger.LogError($"Invalid neural networks. {errorActor}{colon}{errorCritic}");
         }
     }
 
-    // Menu for when deserializing returns an exception (occurs when the user manually edits the JSON files).
-    private static void ErrorMenu(string exception)
-    {
-        Console.Clear();
-        ConsoleRenderer.DrawBorder("JSON Exception");
-        Console.WriteLine("Error in deserializing the loaded JSON file, fix the given errors before loading again.");
-        Console.WriteLine($"Exception: {exception}");
-        Console.WriteLine("Please restart the application, press any key to exit.");
-        ConsoleRenderer.DrawBorder();
-        Console.ReadKey();
-        ConsoleRenderer.Exit();
-    }
-
     // Sets a variable from its given name in a string.
-    public static void ReflectionSet(string variableName, object value)
+    public static void Set(string variableName, object value)
     {
         switch (variableName)
         {
@@ -311,13 +363,16 @@ public class Hyperparameters
             case "FilePath":
                 FilePath = (string) value;
                 break;
+            // Variable name is invalid. Throw the error up the stack to be caught in a place which would
+            // not interrupt the process of the program.
             default:
-                return;
+                ErrorLogger.LogError("Inputted an invalid variable for a hyperparameter set call.");
+                throw new Exception("Inputted an invalid variable for a hyperparameter set call.");
         }
     }
     
     // Gets the value from a variable's given string.
-    public static object ReflectionGet(string variableName)
+    public static object Get(string variableName)
     {
         switch (variableName)
         {
@@ -367,8 +422,11 @@ public class Hyperparameters
                 return CriticWeightFileName;
             case "FilePath":
                 return FilePath;
+            // Variable name is invalid. Throw the error up the stack to be caught in a place which would
+            // not interrupt the process of the program.
             default:
-                return null;
+                ErrorLogger.LogError($"Inputted an invalid variable for a hyperparameter get call ({variableName}).");
+                throw new Exception($"Inputted an invalid variable for a hyperparameter get call ({variableName}).");
         }
     }
 }

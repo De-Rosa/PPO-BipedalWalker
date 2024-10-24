@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using NEA.Rendering;
 
 namespace NEA.Walker.PPO;
 
@@ -23,6 +24,12 @@ public class Matrix
     // Creates an empty matrix from a given height and length.
     public static Matrix FromSize(int height, int length)
     {
+        if (height < 0 || length < 0)
+        {
+            ErrorLogger.LogError($"Attempting to create a matrix with an invalid size. ({height}x{length})");
+            return FromSize(Math.Abs(height), Math.Abs(length));
+        }
+        
         List<float[]> list = new List<float[]>();
         for (int i = 0; i < height; i++)
         {
@@ -51,6 +58,12 @@ public class Matrix
     // https://machinelearningmastery.com/weight-initialization-for-deep-learning-neural-networks/
     public static Matrix FromXavier(int height, int length)
     {
+        if (height < 0 || length < 0)
+        {
+            ErrorLogger.LogError($"Attempting to create a matrix with an invalid size. ({height}x{length})");
+            return FromXavier(Math.Abs(height), Math.Abs(length));
+        }
+
         Matrix matrix = Matrix.FromSize(height, length);
         Random random = new Random();
         float std = MathF.Sqrt(2f / (height + length));
@@ -69,6 +82,12 @@ public class Matrix
     // Creates a matrix full of 0s from a given height and length.
     public static Matrix FromZeroes(int height, int length)
     {
+        if (height < 0 || length < 0)
+        {
+            ErrorLogger.LogError($"Attempting to create a matrix with an invalid size. ({height}x{length})");
+            return FromZeroes(Math.Abs(height), Math.Abs(length));
+        }
+
         Matrix matrix = Matrix.FromSize(height, length);
         matrix.Zero();
         return matrix;
@@ -89,6 +108,12 @@ public class Matrix
     // Loads a matrix from a string of values.
     public static Matrix Load(Matrix matrix, string values)
     {
+        if (values == "")
+        {
+            ErrorLogger.LogError("Attempting to load a matrix with empty values.");
+            return matrix;
+        }
+        
         float[] floatValues = Array.ConvertAll(values.Split(), float.Parse);
         Matrix newMatrix = Matrix.FromSize(matrix._height, matrix._length);
         
@@ -154,7 +179,12 @@ public class Matrix
     // Matrix multiplication.
     public static Matrix operator * (Matrix matrixA, Matrix matrixB)
     {
-        if (matrixA._length != matrixB._height) throw new Exception($"Invalid matrix dimensions: multiplying {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}");
+        if (matrixA._length != matrixB._height)
+        {
+            ErrorLogger.LogError($"Attempting to multiply two matrices which cannot be multiplied. (multiplying {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length})");
+            throw new Exception($"Invalid matrix dimensions: multiplying {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}");
+        }
+        
         Matrix newMatrix = FromSize(matrixA._height, matrixB._length);
         
         for (int i = 0; i < newMatrix._height; i++)
@@ -202,23 +232,17 @@ public class Matrix
     
     public static Matrix operator * (float value, Matrix matrix)
     {
-        Matrix newMatrix = FromSize(matrix._height, matrix._length);
-        
-        for (int i = 0; i < matrix._height; i++)
-        {
-            for (int j = 0; j < matrix._length; j++)
-            {
-                newMatrix._values[i][j] = matrix._values[i][j] * value;
-            }
-        }
-        
-        return newMatrix;
+        return matrix * value;
     }
     
     // Adds each value of the two matrices together (pairwise summation).
     public static Matrix operator + (Matrix matrixA, Matrix matrixB)
     {
-        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, adding {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height)
+        {
+            ErrorLogger.LogError($"Attempting to sum two matrices which cannot be summed. (adding {matrixA._height}x{matrixA._length} matrix to {matrixB._height}x{matrixB._length})");
+            return matrixA;
+        }
         
         Matrix newMatrix = FromSize(matrixA._height, matrixB._length);
         
@@ -268,7 +292,11 @@ public class Matrix
     // Subtracts each value of the two matrices together (pairwise subtraction).
     public static Matrix operator - (Matrix matrixA, Matrix matrixB)
     {
-        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, subtracting {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height)
+        {
+            ErrorLogger.LogError($"Attempting to subtract two matrices which cannot be subtracted. (subtracting {matrixB._height}x{matrixB._length} matrix from {matrixA._height}x{matrixA._length})");
+            return matrixA;
+        }
         
         Matrix newMatrix = FromSize(matrixA._height, matrixB._length);
         
@@ -319,13 +347,25 @@ public class Matrix
     // Divides each value in the two matrices together (pairwise division).
     public static Matrix HadamardDivision(Matrix matrixA, Matrix matrixB)
     {
-        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, dividing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height)
+        {
+            ErrorLogger.LogError($"Attempting to divide two matrices which cannot be divided. (dividing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length})");
+            throw new Exception(
+                $"Attempting to divide two matrices which cannot be divided. (dividing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length})"
+                );
+        }
+        
         Matrix newMatrix = FromSize(matrixA._height, matrixB._length);
         
         for (int i = 0; i < newMatrix._height; i++)
         {
             for (int j = 0; j < newMatrix._length; j++)
             {
+                if (matrixB._values[i][j] == 0)
+                {
+                    ErrorLogger.LogError($"Division by zero during hadamard division process.");
+                    throw new Exception("Division by zero during hadamard division process.");
+                }
                 newMatrix._values[i][j] = matrixA._values[i][j] / matrixB._values[i][j];
             }
         }
@@ -336,7 +376,11 @@ public class Matrix
     // Clips the values of the matrix between two values.
     public static Matrix Clip(Matrix matrix, float upper, float lower)
     {
-        if (lower > upper) throw new Exception($"Attempting to clip a matrix with an invalid range ({lower} < x < {upper}).");
+        if (lower > upper)
+        {
+            ErrorLogger.LogError($"Attempting to clip a matrix with an invalid range ({lower} < x < {upper}).");
+            throw new Exception($"Attempting to clip a matrix with an invalid range ({lower} < x < {upper}).");
+        }
         
         Matrix newMatrix = FromSize(matrix._height, matrix._length);
         for (int i = 0; i < matrix._height; i++)
@@ -363,8 +407,12 @@ public class Matrix
     // Sets a given value of the matrix to the 'inRangeValue' if it is inside the given range, 'otherValue' if not.
     public static Matrix InRange(Matrix matrix, float upper, float lower, float inRangeValue, float otherValue)
     {
-        if (lower > upper) throw new Exception($"Attempting to compare a matrix with an invalid range ({lower} < x < {upper}).");
-
+        if (lower > upper)
+        {
+            ErrorLogger.LogError($"Attempting to compare two matrices with an invalid range ({lower} < x < {upper}).");
+            throw new Exception($"Attempting to compare two matrices with an invalid range ({lower} < x < {upper}).");
+        }
+        
         Matrix newMatrix = FromSize(matrix._height, matrix._length);
         for (int i = 0; i < matrix._height; i++)
         {
@@ -387,7 +435,11 @@ public class Matrix
     // Compares a given value in two matrices, if value A is less than or equal to value B then the value is 'minValue', else 'maxValue'.
     public static Matrix LessThan(Matrix matrixA, Matrix matrixB, float minValue, float maxValue)
     {
-        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height)
+        {
+            ErrorLogger.LogError($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+            throw new Exception($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+        }
 
         Matrix newMatrix = FromSize(matrixA._height, matrixA._length);
         for (int i = 0; i < newMatrix._height; i++)
@@ -411,8 +463,12 @@ public class Matrix
     // Compares a given value in two matrices, if value A is less than value B then the value is 'minValue', else 'maxValue'.
     public static Matrix LessThanNotEquals(Matrix matrixA, Matrix matrixB, float minValue, float maxValue)
     {
-        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height) throw new Exception($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
-
+        if (matrixA._length != matrixB._length || matrixA._height != matrixB._height)
+        {
+            ErrorLogger.LogError($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+            throw new Exception($"Invalid matrix dimensions, comparing {matrixA._height}x{matrixA._length} matrix with {matrixB._height}x{matrixB._length}.");
+        }
+        
         Matrix newMatrix = FromSize(matrixA._height, matrixA._length);
         for (int i = 0; i < newMatrix._height; i++)
         {
@@ -513,7 +569,7 @@ public class Matrix
 
         return newMatrix;
     }
-
+    
     private float[] GetRow(int rowNum)
     {
         return _values[rowNum];
@@ -527,6 +583,22 @@ public class Matrix
             column[i] = _values[i][columnNum];
         }
         return column;
+    }
+    
+    public float Average()
+    {
+        if (_length != 1)
+        {
+            ErrorLogger.LogError("Attempting to get an average of a non-flattened matrix.");
+            throw new Exception("Attempting to get an average of a non-flattened matrix.");
+        }
+
+        float sum = 0;
+        for (int i = 0; i < _height; i++)
+        {
+            sum += _values[i][0];
+        }
+        return sum / _height;
     }
     
     private static float Multiply(int rowNum, int columnNum, Matrix matrixA, Matrix matrixB)

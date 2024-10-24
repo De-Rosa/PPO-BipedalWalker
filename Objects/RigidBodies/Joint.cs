@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using NEA.Bodies;
@@ -30,13 +31,12 @@ public class Joint
     public void Step()
     {
         Vector2 vectorAB = GetPointB() - GetPointA();
-        if (vectorAB == Vector2.Zero) return;
         float depth = vectorAB.Length();
+        if (depth < 0.1f) return;
         vectorAB.Normalize();
         _bodyA.GetSkeleton().Move(vectorAB * depth / 2);
         _bodyB.GetSkeleton().Move(-vectorAB * depth / 2);
-        
-        
+
         Impulses.ResolveJoint(_bodyB, _bodyA, new List<Vector2>(){GetPointA(), GetPointB()}, vectorAB);
     }
 

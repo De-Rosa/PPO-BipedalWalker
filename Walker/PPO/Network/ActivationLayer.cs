@@ -45,7 +45,7 @@ public class ReLULayer : ActivationLayer
 // Leaky ReLU Layer class, child to activation layer - represents the Leaky ReLU activation function.
 public class LeakyReLULayer : ActivationLayer
 {
-    private const float Alpha = 0.01f;
+    private const float Alpha = 0.2f;
 
     protected override float Activation(float value)
     {

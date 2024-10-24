@@ -1,11 +1,10 @@
-﻿using System.IO;
+﻿using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using NEA.Input;
 using NEA.Rendering;
 using NEA.Walker.PPO;
-using Matrix = NEA.Walker.PPO.Matrix;
 
 namespace NEA;
 
@@ -13,14 +12,14 @@ namespace NEA;
 // Every function is called from this main function.
 public class Game1 : Game
 {
-    public static int FrameRate = 60;
-    private GraphicsDeviceManager _graphics;
+    public const int FrameRate = 60;
+    private readonly GraphicsDeviceManager _graphics;
     private readonly InputManager _input;
     private SpriteBatch _spriteBatch;
     private Renderer _renderer;
     private Environment _environment;
     
-    // Main game class, instantiates the input manager and MonoGame required classes.w
+    // Main game class, instantiates the input manager and MonoGame required classes.
     public Game1()
     {
         _graphics = new GraphicsDeviceManager(this);
@@ -52,6 +51,8 @@ public class Game1 : Game
         _graphics.PreferredBackBufferWidth = 1000;
         _graphics.PreferredBackBufferHeight = 1000;
         
+        InactiveSleepTime = new TimeSpan(0);
+
         // Move window to the right side of the screen.
         Window.Position = new Point(1000, 300);
         
@@ -95,10 +96,7 @@ public class Game1 : Game
     // Basic controls, such as moving the camera and exiting the training.
     private void HandleInputs()
     {
-        if (_input.IsKeyPressed(Keys.R))
-        {
-            _renderer.ResetCamera();
-        }
+        // Speed adjustment controls.
         if (_input.IsKeyPressed(Keys.OemCloseBrackets))
         {
             if (Hyperparameters.GameSpeed > 10) return;
@@ -108,6 +106,12 @@ public class Game1 : Game
         {
             if (Hyperparameters.GameSpeed <= 1) return;
             Hyperparameters.GameSpeed--;
+        }
+        
+        // Camera controls.
+        if (_input.IsKeyPressed(Keys.R))
+        {
+            _renderer.ResetCamera();
         }
         if (_input.IsKeyHeld(Keys.Right))
         {

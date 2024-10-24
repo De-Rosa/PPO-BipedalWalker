@@ -33,13 +33,15 @@ public class Environment
     private float _previousAverageReward = 0;
     
     private Walker.PPO.Matrix _state;
-    
+    private (bool, bool) _legsOnFloor;
+
     // Environment class houses the physics/AI loop and stores the trajectory/training information.
     public Environment(SpriteBatch spriteBatch, Renderer renderer)
     {
         _spriteBatch = spriteBatch;
         _renderer = renderer;
         _rigidBodies = new List<RigidBody>();
+        _legsOnFloor = (true, true);
         
         _walker = new Walker.Walker();
         _walker.CreateCreature(_rigidBodies);
@@ -71,7 +73,14 @@ public class Environment
         
         _trajectory.States.Add(_state);
         Walker.PPO.Matrix action = _walker.GetActions(_state, out Walker.PPO.Matrix logProbabilities);
-        _walker.TakeActions(Matrix.Clip(action, 1f, -1f));
+        try
+        {
+            _walker.TakeActions(Matrix.Clip(action, 1f, -1f));
+        }
+        catch (Exception e)
+        {
+            ErrorLogger.LogError($"Exception occurred while attempting to clip the action matrix during the environment update: {e.Message}");
+        }
 
         _state = Step(deltaTime, out float reward, out bool terminal);
         
@@ -92,12 +101,21 @@ public class Environment
         _walker.Update();
         
         reward = CalculateReward();
+        
+        // Fail
         if (_walker.Terminal || _steps > Hyperparameters.MaxTimesteps)
         {
-            reward -= 100f;
+            if (_walker.Terminal) reward -= 40f;
             terminal = true;
         }
-        
+
+        // Success
+        if (_walker.GetPosition().X > 900)
+        {
+            reward += 80f;
+            terminal = true;
+        }
+
         if (_walker.GetPosition().X > _bestDistance) _bestDistance = _walker.GetPosition().X;
 
         return _walker.GetState();
@@ -105,7 +123,7 @@ public class Environment
 
     // Physics step, updates every rigid body and joint in the environment.
     // Is subdivided according to the Iteration setting, providing better stability.
-    private void StepObjects(float deltaTime)
+    public void StepObjects(float deltaTime)
     {
         deltaTime /= Hyperparameters.Iterations;
         
@@ -124,13 +142,15 @@ public class Environment
         }
     }
     
-    // Reward function, provides a positive reward when the walker moves right.
-    // By including negative rewards, the AI may enter a local minimum where it attempts to kill itself as quickly as possible
+    // Reward function, provides a positive reward when the walker moves right (above a certain level) and a negative reward when too low.
+    // We don't discourage moving backwards as the AI may enter a local minimum where it attempts to kill itself as quickly as possible
     // to not receive negative rewards.
     private float CalculateReward()
     {
-        if (_walker.GetChangeInPosition().X < 0) return 0;
-        return _walker.GetChangeInPosition().X * 0.5f;
+        float reward = 0;
+        reward += (_walker.GetChangeInPosition().X > 0 && (((_walker.GetJoints()[0].GetPointA().Y) / 500f) < 1.6f)) ? _walker.GetChangeInPosition().X : 0; // horizontal movement
+        reward -= ((_walker.GetJoints()[0].GetPointA().Y) / 500f) > 1.65f ? -0.1f : 0; // body too low, negative reward
+        return reward;
     }
 
     // Trains the walker's AI, and stores information to use in the console.
@@ -209,6 +229,13 @@ public class Environment
     // The floor must be subdivided, since the physics engine doesn't support concave shapes.
     private void CreateRoughFloor(int segments = 10, int roughness = 100)
     {
+        if (segments <= 0 || roughness < 0)
+        {
+            ErrorLogger.LogError("Invalid floor segments/roughness values.");
+            CreateRoughFloor();
+            return;
+        }
+        
         int initialY = 800;
         int initialX = -50;
         

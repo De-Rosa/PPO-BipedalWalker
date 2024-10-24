@@ -14,15 +14,19 @@ public class ConsoleRenderer
 {
     private const string ConfigurationLocation = "Data/Configurations/";
     private const string DefaultConfigName = "config";
-    private const string DataLocation = "Data/SavedRewards/";
+    private const string DataLocation = "Data/SavedData/";
     private const string DefaultDataName = "data";
     private const string WeightsLocation = "Data/Weights/";
     
-    private List<float> _averageRewards;
+    private List<float> _totalRewards;
+    private List<float> _criticLosses;
+    private List<float> _actorLosses;
 
     public ConsoleRenderer()
     {
-        _averageRewards = new List<float>();
+        _totalRewards = new List<float>();
+        _criticLosses = new List<float>();
+        _actorLosses = new List<float>();
     }
     
     // Original update, opens the starting menu.
@@ -57,23 +61,38 @@ public class ConsoleRenderer
         Console.WriteLine($"Previous average reward: {pastAverageReward}");
         Console.WriteLine($"Best distance: {bestDistance}");
         DrawBorder();
-        Console.WriteLine($"Body angle: {state.GetValue(0, 0)}");
-        Console.WriteLine($"Body angular velocity: {state.GetValue(1, 0)}");
-        Console.WriteLine($"Body linear velocity: ({state.GetValue(0, 0)}, {state.GetValue(1, 0)})");
-        Console.WriteLine($"Lower left leg angle: {state.GetValue(2, 0)}");
-        Console.WriteLine($"Upper left leg angle: {state.GetValue(3, 0)}");
-        Console.WriteLine($"Lower right leg angle: {state.GetValue(4, 0)}");
-        Console.WriteLine($"Upper right leg angle: {state.GetValue(5, 0)}");
+        Console.WriteLine($"Body position scaled: ({state.GetValue(0, 0)}, {state.GetValue(1, 0)})");
+        Console.WriteLine($"Left leg position scaled: ({state.GetValue(2, 0)}, {state.GetValue(3, 0)})");
+        Console.WriteLine($"Right leg position scaled: ({state.GetValue(4, 0)}, {state.GetValue(5, 0)})");
+        Console.WriteLine($"Body linear velocity: ({state.GetValue(6, 0)}, {state.GetValue(7, 0)})");
+        Console.WriteLine($"Lower left leg angle: {state.GetValue(8, 0)}");
+        Console.WriteLine($"Upper left leg angle: {state.GetValue(9, 0)}");
+        Console.WriteLine($"Lower right leg angle: {state.GetValue(10, 0)}");
+        Console.WriteLine($"Upper right leg angle: {state.GetValue(11, 0)}");
         DrawBorder();
-        Console.WriteLine("Press 'x' to exit the training loop.");
+        Console.WriteLine("Press 'x' to pause.");
+        
+        DisplayErrors();
     }
 
-    // Adds an average reward to the list for use in data collection.
-    public void AddAverageEpisodeReward(float reward)
+    // Adds a total reward to the list for use in data collection.
+    public void AddTotalEpisodeReward(float reward)
     {
-        if (Hyperparameters.CollectData) _averageRewards.Add(reward);
+        if (Hyperparameters.CollectData) _totalRewards.Add(reward);
     }
     
+    // Adds a critic loss to the list for use in data collection.
+    public void AddCriticLoss(float loss)
+    {
+        if (Hyperparameters.CollectData) _criticLosses.Add(loss);
+    }
+    
+    // Adds an actor loss to the list for use in data collection.
+    public void AddActorLoss(float loss)
+    {
+        if (Hyperparameters.CollectData) _actorLosses.Add(loss);
+    }
+
     // Displays the current training information.
     private void TrainingInformation(int epoch, int batch, int batchSize, float criticLoss)
     {
@@ -95,18 +114,23 @@ public class ConsoleRenderer
         Option[] options = new[]
         {
             Hyperparameters.CollectData ? new Function(SaveData, "Save data") : (Option) new Text("Cannot save data, data collection is disabled."),
+            new Function(Clear, "Return to training loop."),
             new Function(Exit, "Exit")
         };
         
-        RenderMenu(options, "End of training", ExitTraining, hasText: !Hyperparameters.CollectData);
+        RenderMenu(options, "Paused training", ExitTraining, hasText: !Hyperparameters.CollectData);
     }
 
     // Creates a data file from the average rewards list.
     private async void CreateDataFile(string filePath)
     {
         Hyperparameters.CreateDirectories();
-        string data = string.Join(" ", _averageRewards);
-        data = $"{_averageRewards.Count}\n" + data;
+        string data = string.Join(" ", _totalRewards) + "\n";
+        data += $"length {_totalRewards.Count}, total rewards\n\n";
+        data += string.Join(" ", _criticLosses) + "\n";
+        data += $"length {_criticLosses.Count}, critic losses\n\n";
+        data += string.Join(" ", _actorLosses) + "\n";
+        data += $"length {_actorLosses.Count}, actor losses\n\n";
         await File.WriteAllTextAsync(filePath, data);
     }
 
@@ -136,9 +160,9 @@ public class ConsoleRenderer
             new Function(EditConstants, "Edit hyperparameter constants"),
             new Variable(Hyperparameters.UseGAE, "UseGAE", "Toggle Generalized Advantage Estimate", HyperparameterMenu),
             new Variable(Hyperparameters.NormalizeAdvantages, "NormalizeAdvantages", "Toggle normalizing advantages", HyperparameterMenu),
-            new Variable(Hyperparameters.LogStandardDeviation, "LogStandardDeviation", "Edit log standard deviation", HyperparameterMenu, validationFunction: ValidateFloat),
-            new Variable(Hyperparameters.BatchSize, "BatchSize", "Edit batch size", HyperparameterMenu, validationFunction: ValidateIntPositive),
-            new Variable(Hyperparameters.Epochs, "Epochs", "Edit epoch count", HyperparameterMenu, validationFunction: ValidateIntPositive),
+            new Variable(Hyperparameters.LogStandardDeviation, "LogStandardDeviation", "Edit log standard deviation", HyperparameterMenu, validationFunction: ValidateLogStandardDeviation),
+            new Variable(Hyperparameters.BatchSize, "BatchSize", "Edit batch size", HyperparameterMenu, validationFunction: ValidateBatchSize),
+            new Variable(Hyperparameters.Epochs, "Epochs", "Edit epoch count", HyperparameterMenu, validationFunction: ValidateEpochs),
             new Function(StartingMenu, "Back"),
         };
         
@@ -175,14 +199,14 @@ public class ConsoleRenderer
         Option[] options = new[]
         {
             (Option) new Text("Adam Constants:"),
-            new Variable(Hyperparameters.Alpha, "Alpha", "Edit learning rate, alpha", EditConstants, validationFunction: ValidateFloatPositive),
-            new Variable(Hyperparameters.Beta1, "Beta1", "Edit 1st-order exponential decay, beta1", EditConstants, validationFunction: ValidateFloat),
-            new Variable(Hyperparameters.Beta2, "Beta2", "Edit 2nd-order exponential decay, beta2", EditConstants, validationFunction: ValidateFloat),
-            new Variable(Hyperparameters.AdamEpsilon, "AdamEpsilon", "Edit zero-division preventative, epsilon (Adam)", EditConstants, validationFunction: ValidateFloat),
+            new Variable(Hyperparameters.Alpha, "Alpha", "Edit learning rate, alpha", EditConstants, validationFunction: ValidateAlpha),
+            new Variable(Hyperparameters.Beta1, "Beta1", "Edit 1st-order exponential decay, beta1", EditConstants, validationFunction: ValidateSmallDecimal),
+            new Variable(Hyperparameters.Beta2, "Beta2", "Edit 2nd-order exponential decay, beta2", EditConstants, validationFunction: ValidateSmallDecimal),
+            new Variable(Hyperparameters.AdamEpsilon, "AdamEpsilon", "Edit zero-division preventative, epsilon (Adam)", EditConstants, validationFunction: ValidateSmallDecimal),
             new Text(""),
             new Text("PPO Constants:"),
-            new Variable(Hyperparameters.Gamma, "Gamma", "Edit discount factor, gamma", EditConstants, validationFunction: ValidateFloat),
-            new Variable(Hyperparameters.Epsilon, "Epsilon", "Edit clipping factor, epsilon", EditConstants, validationFunction: ValidateFloat),
+            new Variable(Hyperparameters.Gamma, "Gamma", "Edit discount factor, gamma", EditConstants, validationFunction: ValidateSmallDecimal),
+            new Variable(Hyperparameters.Epsilon, "Epsilon", "Edit clipping factor, epsilon", EditConstants, validationFunction: ValidateSmallDecimal),
             new Text(""),
             new Function(HyperparameterMenu, "Back"),
         };
@@ -195,15 +219,16 @@ public class ConsoleRenderer
     {
         Option[] options = new[]
         {
-            (Option) new Variable(Hyperparameters.GameSpeed, "GameSpeed", "Change game speed", SettingsMenu, validationFunction: ValidateIntPositive),
-            new Variable(Hyperparameters.Iterations, "Iterations", "Edit physics iteration count", SettingsMenu, validationFunction: ValidateIntPositive),
+            (Option) new Variable(Hyperparameters.GameSpeed, "GameSpeed", "Change game speed", SettingsMenu, validationFunction: ValidateGameSpeed),
+            new Function(ClearErrorBufferOption, "Clear error buffer"),
+            new Variable(Hyperparameters.Iterations, "Iterations", "Edit physics iteration count", SettingsMenu, validationFunction: ValidateIterations),
             new Variable(Hyperparameters.CollectData, "CollectData", "Toggle data collection", SettingsMenu),
             new Variable(Hyperparameters.SaveWeights, "SaveWeights", "Toggle weights saving", SettingsMenu),
             new Variable(Hyperparameters.CriticWeightFileName, "CriticWeightFileName", "Change critic weights file name", SettingsMenu, validationFunction: ValidateFileName),
             new Variable(Hyperparameters.ActorWeightFileName, "ActorWeightFileName", "Change actor weights file name", SettingsMenu, validationFunction: ValidateFileName),
             new Variable(Hyperparameters.FilePath, "FilePath", "Change file path", SettingsMenu, validationFunction: ValidateFilePath),
             new Variable(Hyperparameters.RoughFloor, "RoughFloor", "Toggle rough floor", SettingsMenu),
-            new Variable(Hyperparameters.MaxTimesteps, "MaxTimesteps", "Edit maximum timestep count", SettingsMenu, validationFunction: ValidateIntPositive),
+            new Variable(Hyperparameters.MaxTimesteps, "MaxTimesteps", "Edit maximum timestep count", SettingsMenu, validationFunction: ValidatePositiveInt),
             new Function(StartingMenu, "Back"),
         };
         
@@ -570,14 +595,14 @@ public class ConsoleRenderer
     
     // Loads a JSON configuration file.
     private void LoadConfiguration()
-    {
+    {   
         Console.Clear();
         DrawBorder("Load configuration");
         Console.WriteLine("Enter the file name of the configuration to be loaded (leave blank for default, 'x' to exit):");
         DrawBorder();
         
         string fileName = Console.ReadLine();
-        string fileLocation;
+        string fileLocation;    
         
         (bool result, string error) = ValidateFileName(fileName);
         if (!result)
@@ -634,7 +659,7 @@ public class ConsoleRenderer
     }
     
     // Validates an input for neural networks.
-    public static (bool, string) ValidateNeuralNetwork(string neuralNetwork, string variableName )
+    public static (bool, string) ValidateNeuralNetwork(string neuralNetwork, string variableName)
     {
         if (variableName != "CriticNeuralNetwork" && variableName != "ActorNeuralNetwork") return (false, "invalid neural network type");
         
@@ -655,22 +680,82 @@ public class ConsoleRenderer
         
         return (result, error);
     }
-
-    // Validates an input for positive integers.
-    public static (bool, string) ValidateIntPositive(string variable, string variableName = "")
+    
+    // Validates an input for Epochs.
+    public static (bool, string) ValidateEpochs(string variable, string variableName = "")
     {
-        bool isInt = int.TryParse(variable, out int variableInt);
-        bool result = !(variableInt <= 0 || variableInt > 99999) && isInt;
-        string error = result ? "" : $"value must be positive, an integer, and less than 100000 (inputted {variable})";
-        return (result, error);
+        return ValidateInt(variable, 0, 50, variableName);
+    }
+    
+    // Validates an input for GameSpeed.
+    public static (bool, string) ValidateGameSpeed(string variable, string variableName = "")
+    {
+        return ValidateInt(variable, 0, 10, variableName);
+    }
+    
+    // Validates an input for Iterations.
+    public static (bool, string) ValidateIterations(string variable, string variableName = "")
+    {
+        return ValidateInt(variable, 0, 200, variableName);
+    }
+    
+    // Validates an input for BatchSize.
+    public static (bool, string) ValidateBatchSize(string variable, string variableName = "")
+    {
+        return ValidateInt(variable, 0, 1000, variableName);
+    }
+    
+    // Validates an input for Alpha.
+    public static (bool, string) ValidateAlpha(string variable, string variableName = "")
+    {
+        return ValidateFloat(variable, 0, 10, variableName);
+    }
+    
+    // Validates an input for LogStandardDeviation.
+    public static (bool, string) ValidateLogStandardDeviation(string variable, string variableName = "")
+    {
+        return ValidateFloat(variable, -5, 5, variableName);
     }
 
-    // Validates an input for positive floats.
-    public static (bool, string) ValidateFloatPositive(string variable, string variableName = "")
+    // Validates an input for a float in the range 0<x<1.
+    public static (bool, string) ValidateSmallDecimal(string variable, string variableName = "")
     {
+        return ValidateFloat(variable, 0, 1, variableName);
+    }
+    
+    // Validates an input for positive integers.
+    public static (bool, string) ValidatePositiveInt(string variable, string variableName = "")
+    {
+        return ValidateInt(variable, 0, 99999, variableName);
+    }
+
+    // Validates an input for integers.
+    public static (bool, string) ValidateInt(string variable,  int min, int max, string variableName = "")
+    {
+        if (min > max)
+        {
+            string message = $"Attempting to validate int with invalid range ({min}<x<{max})";
+            ErrorLogger.LogError(message);
+            return (false, message);
+        }
+        bool isInt = int.TryParse(variable, out int variableInt);
+        bool result = !(variableInt <= min || variableInt >= max) && isInt;
+        string error = result ? "" : $"value must be greater than {min}, an integer, and less than {max} (inputted {variable})";
+        return (result, error);
+    }
+    
+    // Validates an input for positive floats.
+    public static (bool, string) ValidateFloat(string variable, int min, int max, string variableName = "")
+    {
+        if (min > max)
+        {
+            string message = $"Attempting to validate float with invalid range ({min}<x<{max})";
+            ErrorLogger.LogError(message);
+            return (false, message);
+        }
         bool isFloat = float.TryParse(variable, out float variableFloat);
-        bool result = !(variableFloat <= 0f || variableFloat > 99999f) && isFloat;
-        string error = result ? "" : $"value must be positive, a float, and less than 100000 (inputted {variable})";
+        bool result = !(variableFloat <= min || variableFloat >= max) && isFloat;
+        string error = result ? "" : $"value must be greater than {min}, a float, and less than {max} (inputted {variable})";
         return (result, error);
     }
 
@@ -685,10 +770,18 @@ public class ConsoleRenderer
     // Renders a menu from a given list of options.
     private void RenderMenu(Option[] options, string title, Action menu, bool hasText = false)
     {
+        if (options.Length <= 0 || menu == null || title == "")
+        {
+            ErrorLogger.LogError("Attempting to render a (non-existent?) menu with no options/title.");
+            StartingMenu();
+            return;
+        }
         Clear();
         DrawBorder(title);
         DrawOptions(options);
         DrawBorder();
+        
+        DisplayErrors();
 
         if (hasText)
         {
@@ -700,14 +793,35 @@ public class ConsoleRenderer
 
             options = optionsWithoutText.ToArray();
         }
-        
-        
+
         GetInput(options, menu);
+    }
+    
+    // Displays the current error messages of the session.
+    private void DisplayErrors()
+    {
+        if (ErrorLogger.ErrorBuffer.Count > 0)
+        {
+            Console.WriteLine();
+            DrawBorder("Error buffer");
+            for (int i = 0; i < ErrorLogger.ErrorBuffer.Count; i++)
+            {
+                if (i != 0) Console.WriteLine();
+                Console.WriteLine(ErrorLogger.ErrorBuffer[i]);
+            }
+            DrawBorder();
+        }
     }
 
     // Receives the user input and activates the given option in a menu.
     private void GetInput(Option[] options, Action previousMenu)
     {
+        if (options.Length <= 0 || previousMenu == null)
+        {
+            ErrorLogger.LogError("Attempting to activate an option from an empty/non-connected list of options.");
+            StartingMenu();
+            return;
+        }
         char input = Console.ReadKey(true).KeyChar;
         input = Char.ToUpper(input);
         int result = ValidateInput(input, options.Length);
@@ -719,6 +833,12 @@ public class ConsoleRenderer
     // Validates the user input for menu selection.
     private int ValidateInput(char input, int count)
     {
+        if (count <= 0)
+        {
+            ErrorLogger.LogError("Attempting to validate a menu input with size less than or equal to 0.");
+            return -1;
+        }
+        
         // 65 == 'A'
         int inputInt = Convert.ToInt32(input);
         if (inputInt < 65 || inputInt > 64 + count) return -1;
@@ -728,6 +848,12 @@ public class ConsoleRenderer
     // Draws the options.
     private void DrawOptions(Option[] options)
     {
+        if (options.Length == 0)
+        {
+            ErrorLogger.LogError("Attempting to draw an array of options which is empty.");
+            return;
+        }
+        
         int count = 0;
         
         foreach (Option option in options)
@@ -769,6 +895,12 @@ public class ConsoleRenderer
     // Draws a line in the console with a title.
     public static void DrawBorder(string title)
     {
+        if (title == "")
+        {
+            ErrorLogger.LogError("Attempting to draw a border with an empty title.");
+            return;
+        }
+        
         if (title.Length >= 28)
         {
             Console.WriteLine(title);
@@ -787,6 +919,13 @@ public class ConsoleRenderer
     public static void Clear()
     {
         Console.Clear();
+    }
+
+    // Clears the error buffer and return to the settings menu.
+    private void ClearErrorBufferOption()
+    {
+        ErrorLogger.ErrorBuffer.Clear();
+        SettingsMenu();
     }
 }
 
@@ -853,13 +992,22 @@ public class Variable : Option
 
         if (_activation is bool)
         {
-            Hyperparameters.ReflectionSet(_variableName, ! (bool) Hyperparameters.ReflectionGet(_variableName));
+            try
+            {
+                Hyperparameters.Set(_variableName, !(bool)Hyperparameters.Get(_variableName));
+            }
+            catch (Exception e)
+            {
+                ErrorLogger.LogError($"Exception occurred while attempting to activate a menu option: {e.Message}");
+            }
+            
             _previousMenu();
             return;
         }
         
         ConsoleRenderer.DrawBorder("Variable Edit");
         Console.WriteLine($"Currently editing: {_variableName} ('x' to exit).");
+        // Not a global error, validation error for the user.
         if (errorMessage != null) Console.WriteLine($"Error: {errorMessage}.");
         ConsoleRenderer.DrawBorder();
         
@@ -885,7 +1033,14 @@ public class Variable : Option
         
         var value = Convert.ChangeType(input, _activation.GetType());
 
-        Hyperparameters.ReflectionSet(_variableName, value);
+        try
+        {
+            Hyperparameters.Set(_variableName, value);
+        } catch (Exception e)
+        {
+            ErrorLogger.LogError($"Exception occurred while attempting to activate a menu option: {e.Message}");
+        }
+
         _previousMenu();
     }
 

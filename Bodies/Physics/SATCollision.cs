@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using NEA.Rendering;
 
 namespace NEA.Bodies.Physics;
 
@@ -15,7 +16,10 @@ public static class SATCollision
         out Vector2 normal, out float depth)
     {
         if (vectorA.Count <= 1 || vectorB.Count <= 1)
-            throw new Exception("Cannot calculate collision between shapes with length ≤ 1.");
+        {
+            ErrorLogger.LogError("Attempting to use SAT with shapes with length ≤ 1.");
+            throw new Exception("Cannot use SAT between shapes with length ≤ 1.");
+        }
 
         normal = Vector2.Zero;
         depth = float.MaxValue;

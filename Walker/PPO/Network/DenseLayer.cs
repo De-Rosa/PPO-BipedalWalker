@@ -1,4 +1,5 @@
 using System;
+using NEA.Rendering;
 
 namespace NEA.Walker.PPO;
 
@@ -20,6 +21,17 @@ public class DenseLayer : Layer
 
     public DenseLayer(int inputSize, int outputSize)
     {
+        if (inputSize < 0)
+        {
+            ErrorLogger.LogError("Input size for a dense layer must be a positive integer.");
+            throw new Exception("Input size for dense layer negative.");
+        }
+        if (outputSize < 0)
+        {
+            ErrorLogger.LogError("Output size for a dense layer must be a positive integer.");
+            throw new Exception("Output size for dense layer negative.");
+        }
+        
         _weights = Matrix.FromXavier(outputSize, inputSize);
         _biases = Matrix.FromZeroes(outputSize, 1);
 
@@ -42,6 +54,12 @@ public class DenseLayer : Layer
     // Loads the weight/biases from a string taken from a file.
     public void Load(string contents)
     {
+        if (contents == "")
+        {
+            ErrorLogger.LogError("Attempting to load empty dense layer weights.");
+            return;
+        }
+        
         int weightIndicator = contents.IndexOf("W", StringComparison.Ordinal) + 2;
         int biasIndicator = contents.IndexOf("B", StringComparison.Ordinal) + 2;
         string weights = contents.Substring(weightIndicator, biasIndicator - weightIndicator - 3);
@@ -63,7 +81,20 @@ public class DenseLayer : Layer
     // Feeds a matrix forward through the dense layer.
     public override Matrix FeedForward(Matrix matrix)
     {
-        return _weights * matrix + _biases;
+        Matrix result;
+        
+        try
+        {
+            result = _weights * matrix;
+            result += _biases;
+        }
+        catch (Exception e)
+        {
+            ErrorLogger.LogError($"Failure to feed forward a matrix through a dense layer. (Exception: {e.Message}");
+            throw new Exception($"Failure to feed forward a network. (Exception: {e.Message})");
+        }
+        
+        return result;
     }
 
     // Feeds a matrix backward through the dense layer.
@@ -71,9 +102,21 @@ public class DenseLayer : Layer
     // https://github.com/b2developer/SpidermanPPO/blob/main/PPO/Assets/Scripts/NeuralNetwork2/Dense.cs
     public override Matrix FeedBack(Matrix matrix, Matrix gradient)
     {
-        _derivativeLossWrtBiases += (Matrix.Flatten(gradient));
-        _derivativeLossWrtWeights += gradient * Matrix.Transpose(matrix);
-        return Matrix.Transpose(_weights) * gradient;
+        Matrix result;
+
+        try
+        {
+            _derivativeLossWrtBiases += (Matrix.Flatten(gradient));
+            _derivativeLossWrtWeights += gradient * Matrix.Transpose(matrix);
+            result = Matrix.Transpose(_weights) * gradient;
+        }
+        catch (Exception e)
+        {
+            ErrorLogger.LogError($"Failure to feed backwards a matrix through a dense layer. (Exception: {e.Message}");
+            throw new Exception($"Failure to feed backward a network. (Exception: {e.Message})");
+        }
+
+        return result;
     }
 
     // Adam optimiser adjusts the weights and biases inside of the dense layer along the gradients calculated during
@@ -101,8 +144,18 @@ public class DenseLayer : Layer
         var correctedVarianceGradientWeights = (_varianceGradientWeights / (float) (1 - Math.Pow(Hyperparameters.Beta2, _iteration)));
         var correctedVarianceGradientBiases = (_varianceGradientBiases / (float) (1 - Math.Pow(Hyperparameters.Beta2, _iteration)));
 
-        _weights = (_weights - (Hyperparameters.Alpha * Matrix.HadamardDivision(correctedMeanGradientWeights, Matrix.SquareRoot(correctedVarianceGradientWeights) + Hyperparameters.AdamEpsilon)));
-        _biases = (_biases - (Hyperparameters.Alpha * Matrix.HadamardDivision(correctedMeanGradientBiases, Matrix.SquareRoot(correctedVarianceGradientBiases) + Hyperparameters.AdamEpsilon)));
+        try
+        {
+            _weights = (_weights - (Hyperparameters.Alpha * Matrix.HadamardDivision(correctedMeanGradientWeights,
+                Matrix.SquareRoot(correctedVarianceGradientWeights) + Hyperparameters.AdamEpsilon)));
+            _biases = (_biases - (Hyperparameters.Alpha * Matrix.HadamardDivision(correctedMeanGradientBiases,
+                Matrix.SquareRoot(correctedVarianceGradientBiases) + Hyperparameters.AdamEpsilon)));
+        }
+        catch (Exception e)
+        {
+            ErrorLogger.LogError($"Failure updating weights/biases during Adam optimization: {e.Message}");
+        }
+        
     }
 
     // Zeros the gradients for the weight and biase matrices.

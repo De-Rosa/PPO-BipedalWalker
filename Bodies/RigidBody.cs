@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework;
 using NEA.Bodies.Physics;
 using NEA.Materials;
 using NEA.Objects.RigidBodies;
+using NEA.Rendering;
 using Vector2 = Microsoft.Xna.Framework.Vector2;
 
 namespace NEA.Bodies;
@@ -70,18 +71,26 @@ public class RigidBody
             if (_associatedBodies.Contains(body)) continue;
             
             if (!Skeleton.IsColliding(Skeleton, body.Skeleton)) continue;
+           
+            if (body._isFloor) Collided = true;
+            if (_isFloor) body.Collided = true;
             
             List<Vector2> vectorA = Skeleton.GetVectors();
             List<Vector2> vectorB = body.GetVectors();
-            
-            if (SATCollision.IsColliding(vectorA, vectorB, Skeleton.GetCentroid(), body.GetCentroid(), out Vector2 normal, out float depth))
+
+            try
             {
-                if (body._isFloor) Collided = true;
-                if (_isFloor) body.Collided = true;
-                
-                List<Vector2> contactPoints = ContactPoints.GetContactPoints(vectorA, vectorB, normal);
-                MoveObjects(this, body, normal, depth);
-                Impulses.ResolveCollisions(this, body, contactPoints, normal);
+                if (SATCollision.IsColliding(vectorA, vectorB, Skeleton.GetCentroid(), body.GetCentroid(),
+                        out Vector2 normal, out float depth))
+                {
+                    List<Vector2> contactPoints = ContactPoints.GetContactPoints(vectorA, vectorB, normal);
+                    MoveObjects(this, body, normal, depth);
+                    Impulses.ResolveCollisions(this, body, contactPoints, normal);
+                }
+            }
+            catch (Exception e)
+            {
+                ErrorLogger.LogError($"Exception occurred during collision check/resolving: {e.Message}");   
             }
         }
     }
