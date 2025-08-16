@@ -4,8 +4,8 @@ An environment is created using a rigid-body physics engine, where a bipedal wal
 The ML model implemented is PPO (a reinforcement learning algorithm), based on my own matrix library, with Adam being used as the optimization algorithm.  
 
 ## Contents
-`Bodies/` contains code for the physics engine (where `Materials/` defines materials used in the environment and `Objects/` contains templates for shapes and AABB logic).
-`Walker/` contains code for the neural net and PPO setup alongside the generic updates for the bipedal walker.
+`Bodies/` contains code for the physics engine (where `Materials/` defines materials used in the environment and `Objects/` contains templates for shapes and AABB logic).\
+`Walker/` contains code for the neural net and PPO setup alongside the generic updates for the bipedal walker.\
 `Input/` and `Rendering/` contain code for the user interface.
   
 ### **Credits:**
